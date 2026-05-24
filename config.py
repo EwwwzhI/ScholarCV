@@ -43,7 +43,7 @@ class LayoutConfig:
     A4_WIDTH = 210.0
 
     # 严格对应 LaTeX 模板中的 \geometry 设置
-    MARGIN_TOP = 10.0
+    MARGIN_TOP = 8.0
     MARGIN_BOTTOM = 6.0
     MARGIN_LEFT = 12.0
     MARGIN_RIGHT = 12.0
@@ -66,9 +66,19 @@ class LayoutConfig:
     # 180.0 / 3.88 ≈ 46.39，向下取整为 46 个字
     MAX_CHARS_PER_LINE = int(VALID_WIDTH / CHAR_WIDTH_MM)  # 46
 
-    # 默认行距设定 (LaTeX 默认的 \baselineskip 约为 1.2 倍字号)
+    # 默认行距设定：LaTeX 的正文基线距离约为字号的 1.2 倍，
+    # \linespread 会继续乘在这个基线距离上。
+    LATEX_BASELINESKIP_RATIO = 1.2
     LINE_STRETCH = 1.2
-    LINE_HEIGHT_MM = CHAR_WIDTH_MM * LINE_STRETCH          # 约 4.66 mm
+    BASE_LINE_HEIGHT_MM = CHAR_WIDTH_MM * LATEX_BASELINESKIP_RATIO
+    LINE_HEIGHT_MM = BASE_LINE_HEIGHT_MM * LINE_STRETCH
+
+    @classmethod
+    def line_height_mm(cls, line_stretch=None):
+        """估算普通正文在当前 \\linespread 下的实际单行基线高度。"""
+        if line_stretch is None:
+            line_stretch = cls.LINE_STRETCH
+        return cls.BASE_LINE_HEIGHT_MM * line_stretch
 
     # ==========================================
     # 3. 静态结构的高度损耗预估 (单位: mm)
@@ -105,7 +115,7 @@ class LayoutConfig:
         """估算基本信息表格高度，对应 LaTeX 的 arraystretch=1.5 和两行内容。"""
         if line_stretch is None:
             line_stretch = cls.LINE_STRETCH
-        row_height = cls.CHAR_WIDTH_MM * line_stretch * cls.BASIC_INFO_TABLE_ARRAY_STRETCH
+        row_height = cls.line_height_mm(line_stretch) * cls.BASIC_INFO_TABLE_ARRAY_STRETCH
         return cls.BASIC_INFO_TABLE_ROWS * row_height
 
     @classmethod
@@ -186,4 +196,25 @@ class LayoutConfig:
     ITEM_SEP_BASE = 1.5
     ITEMIZE_INDENT_MM = 7.0
     ITEMIZE_TOPSEP_MM = 2.0 * PT_TO_MM
-    LAYOUT_SAFETY_RATIO = 0.985
+
+    # 连续排版求解：最终估算高度优先落在可用高度的这个区间内
+    LAYOUT_TARGET_MIN_RATIO = 0.95
+    LAYOUT_TARGET_MAX_RATIO = 0.99
+    LAYOUT_UNDERFULL_BLOCK_RATIO = 0.82
+
+    # 连续排版求解：各间距参数的上下限。求解器会在 min 和 max 之间连续插值。
+    LINE_STRETCH_MIN = 1.12
+    LINE_STRETCH_MAX = 1.26
+    MODULE_SEP_MIN_MM = MODULE_SEP_BASE * 0.68
+    MODULE_SEP_MAX_MM = MODULE_SEP_BASE * 1.25
+    ITEM_SEP_MIN_MM = 0.7
+    ITEM_SEP_MAX_MM = ITEM_SEP_BASE * 1.35
+    HEADER_BODY_SEP_MIN_MM = 0.6
+    HEADER_BODY_SEP_MAX_MM = HEADER_BODY_SEP_BASE + 0.5
+    FIRST_MODULE_TOP_SEP_MIN_MM = 0.0
+    FIRST_MODULE_TOP_SEP_MAX_MM = FIRST_MODULE_TOP_SEP_BASE
+
+    # 硬安全线：连续求解的目标区间不能超过该安全线。
+    LAYOUT_SAFETY_RATIO = 0.99
+    LAYOUT_SAFETY_MARGIN_MM = 2.0
+    LAYOUT_SOLVER_EPSILON_MM = 0.1

@@ -49,7 +49,7 @@ def build_resume(md_file="resume_config.md", output_name="output_resume"):
     print("\n⚖️ [Step 3/5] 启动物理空间预推演...")
     try:
         best_spacing = optimize_layout_spacing(resume_data)
-        print(f"✅ 高度推演完毕，注入 LaTeX 间距调优参数：{best_spacing}")
+        print("✅ 高度推演完毕。")
     except Exception as e:
         print(f"\n🚨 物理空间预计算失败：{e}")
         return

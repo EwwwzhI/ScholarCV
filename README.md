@@ -6,7 +6,7 @@ ScholarCV 是一个面向中文学术简历的自动排版工具。项目使用 
 
 - 使用 `resume_config.md` 管理基础信息、教育背景、科研经历、竞赛经历、项目经历等内容。
 - 自动处理证件照和校徽：证件照按目标比例裁切，校徽自动去白边并控制分辨率。
-- 自动估算 A4 页面高度，在饱满、标准、紧凑三种排版模式中选择合适方案。
+- 自动估算 A4 页面高度，并连续求解行距与模块间距，让内容落在目标饱满区间。
 - 支持中文等效字符宽度估算，减少中英文混排导致的换行误差。
 - 支持标题颜色、正文颜色、分割线颜色配置。
 - 支持模块标题左侧 PNG 图标；图标缺失时自动回退为纯文字标题。
@@ -89,6 +89,8 @@ $env:PYTHONIOENCODING='utf-8'; python main.py
 - `MARGIN_TOP` / `MARGIN_BOTTOM`：页面上下边距
 - `AVATAR_WIDTH_MM` / `AVATAR_HEIGHT_MM`：证件照显示尺寸
 - `LOGO_HEIGHT_MM`：校徽显示高度
+- `LAYOUT_TARGET_MIN_RATIO` / `LAYOUT_TARGET_MAX_RATIO`：连续排版求解的目标高度区间
+- `LAYOUT_SAFETY_MARGIN_MM`：连续求解时预留的页面硬安全冗余
 
 其他参数用于自动排版和内部布局校准，通常不建议频繁调整。
 
@@ -130,13 +132,18 @@ SECTION_ICONS = {
 
 图标 PNG 放入 `icons/` 目录即可。图片不存在时不会报错，会自动使用纯文字标题。
 
-## 排版模式
+## 连续排版
 
-ScholarCV 会根据估算高度自动选择：
+ScholarCV 会先估算标准排版高度，再在最紧凑和最舒展参数之间连续插值，直接求解一组接近目标高度的排版参数。
 
-- `full`：内容有余量时，小幅增加行距和间距，让页面更饱满。
-- `standard`：标准间距。
-- `compact`：内容接近满页时，压缩模块间距和列表项间距。
+默认目标高度区间为可用正文高度的 `95% - 99%`。求解器会优先贴近区间上沿，让页面保持饱满，同时受 `LAYOUT_SAFETY_RATIO` 和 `LAYOUT_SAFETY_MARGIN_MM` 约束，避免估算误差导致超页。
+
+连续求解会同步调整：
+
+- `line_stretch`：正文行距
+- `module_sep`：模块间距
+- `item_sep`：列表项间距
+- `header_body_sep`：头部与正文间距
 
 如果内容明显过少或过多，程序会阻断生成并给出删减或补充建议。
 
@@ -145,7 +152,7 @@ ScholarCV 会根据估算高度自动选择：
 ```text
 main.py              # 构建入口
 parser.py            # Markdown 解析与校验
-engine.py            # 高度估算与排版模式选择
+engine.py            # 高度估算与连续排版求解
 render.py            # LaTeX 模板渲染
 image_processor.py   # 证件照与校徽预处理
 config.py            # 物理排版配置
