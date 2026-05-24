@@ -45,17 +45,21 @@ def parse_resume_md(file_path):
     if missing_texts:
         raise ValueError(f"\n❌ [排版阻断] 基础信息缺失：\n必须填写 {missing_texts}，否则简历头部结构将崩溃！")
 
-    # 校验项 2：四格网格选填项【有且仅有 1 个】
-    optional_pool = {"政治面貌", "GitHub主页", "个人博客", "籍贯"}
-    filled_optionals = set(header.keys()).intersection(optional_pool)
-    
-    if len(filled_optionals) == 0:
-        raise ValueError("\n❌ [排版阻断] 网格选填项空缺：\n请在 [政治面貌, GitHub主页, 个人博客, 籍贯] 中至少填写 1 项！")
-    elif len(filled_optionals) > 1:
-        raise ValueError(f"\n❌ [排版阻断] 网格选填项超载：\nLaTeX 模板只能容纳 1 项，但你填写了 {list(filled_optionals)}。\n请删减多余字段！")
-
-    # 校验项 3：双图必填项（不仅检查是否填了，还检查文件物理存不存在）
+    # 校验项 2：双图必填项（不仅检查是否填了，还检查文件物理存不存在）
     required_images = {"证件照", "校徽"}
+
+    # 校验项 3：头部选填项可自定义字段名，但模板最多容纳 1 项
+    required_header_keys = required_texts | required_images
+    filled_optionals = [key for key in header.keys() if key not in required_header_keys]
+
+    if len(filled_optionals) > 1:
+        raise ValueError(
+            f"\n❌ [排版阻断] 网格选填项超载：\n"
+            f"LaTeX 模板只能容纳 1 项，但你填写了 {filled_optionals}。\n"
+            f"请保留 1 个自定义选填字段，或将多余字段留空/删除！"
+        )
+
+    # 校验项 4：双图路径检查
     missing_images = required_images - set(header.keys())
     if missing_images:
         raise ValueError(f"\n❌ [排版阻断] 图片信息缺失：\n保研学术简历必须包含 {missing_images}！")

@@ -238,12 +238,12 @@ class LatexRenderer:
         self.tex_code = self.tex_code.replace("[[LOGO_PATH]]", header.get("校徽", "").replace("\\", "/"))
         self.tex_code = self.tex_code.replace("[[AVATAR_PATH]]", header.get("证件照", "").replace("\\", "/"))
 
-        # 3. 处理选填项及拉伸对齐逻辑
+        # 3. 处理自定义选填项及拉伸对齐逻辑
         required_keys = {"姓名", "联系电话", "电子邮箱", "证件照", "校徽"}
-        optional_keys = set(header.keys()) - required_keys
+        optional_keys = [key for key in header.keys() if key not in required_keys]
         
         if optional_keys:
-            opt_key = list(optional_keys)[0]
+            opt_key = optional_keys[0]
             opt_value = header[opt_key]
             self.tex_code = self.tex_code.replace("[[OPTIONAL_KEY]]", self._escape_latex(opt_key))
             self.tex_code = self.tex_code.replace("[[OPTIONAL_VALUE]]", self._escape_latex(opt_value))

@@ -1,0 +1,30 @@
+# Root-level personal images and generated resume outputs
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+/*.gif
+/*.bmp
+/*.tif
+/*.tiff
+/*.heic
+/*.pdf
+/*.tex
+
+# LaTeX build artifacts
+/*.aux
+/*.log
+/*.out
+/*.toc
+/*.fls
+/*.fdb_latexmk
+/*.synctex.gz
+/*.xdv
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local OS/editor noise
+.DS_Store
+Thumbs.db

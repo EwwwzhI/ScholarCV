@@ -65,7 +65,12 @@ def estimate_block_height(
         top_sep = module_sep
 
     # 初始高度 = 模块上边距 + 大标题本身高度 + 标题到首个项目的固定下边距
-    total_height = top_sep + config.SECTION_TITLE_HEIGHT + config.SECTION_BODY_SEP
+    section_title_height = (
+        config.section_title_height_mm(section_name)
+        if hasattr(config, "section_title_height_mm")
+        else config.SECTION_TITLE_HEIGHT
+    )
+    total_height = top_sep + section_title_height + config.SECTION_BODY_SEP
     line_height = config.CHAR_WIDTH_MM * line_stretch
     item_max_chars = calculate_max_chars_for_width(
         config.VALID_WIDTH - config.ITEMIZE_INDENT_MM,
@@ -117,7 +122,12 @@ def estimate_resume_total_height(parsed_data, config=LayoutConfig, profile=None)
         }
 
     # 头部区域按实际模板尺寸估算，再接一个很小的正文起始间距
-    total_mm = config.HEADER_HEIGHT + profile["header_body_sep"]
+    header_height = (
+        config.header_height_mm(profile["line_stretch"])
+        if hasattr(config, "header_height_mm")
+        else config.HEADER_HEIGHT
+    )
+    total_mm = header_height + profile["header_body_sep"]
     
     visible_sections = [
         (section_name, items)
@@ -148,15 +158,17 @@ def get_layout_profiles(config=LayoutConfig):
     """按视觉优先级定义布局方案，估算和渲染共享同一组数值。"""
     return [
         {
-            "name": "standard",
-            "module_sep": config.MODULE_SEP_BASE,
-            "item_sep": config.ITEM_SEP_BASE,
-            "line_stretch": config.LINE_STRETCH,
-            "header_body_sep": config.HEADER_BODY_SEP_BASE,
+            "name": "airy",
+            "label": "舒展排版",
+            "module_sep": config.MODULE_SEP_BASE * 1.25,
+            "item_sep": config.ITEM_SEP_BASE * 1.35,
+            "line_stretch": 1.26,
+            "header_body_sep": config.HEADER_BODY_SEP_BASE + 0.5,
             "first_module_top_sep": config.FIRST_MODULE_TOP_SEP_BASE,
         },
         {
             "name": "full",
+            "label": "饱满排版",
             "module_sep": config.MODULE_SEP_BASE * 1.1,
             "item_sep": config.ITEM_SEP_BASE * 1.15,
             "line_stretch": 1.22,
@@ -164,11 +176,48 @@ def get_layout_profiles(config=LayoutConfig):
             "first_module_top_sep": config.FIRST_MODULE_TOP_SEP_BASE,
         },
         {
+            "name": "relaxed",
+            "label": "宽松排版",
+            "module_sep": config.MODULE_SEP_BASE * 1.05,
+            "item_sep": config.ITEM_SEP_BASE * 1.05,
+            "line_stretch": 1.21,
+            "header_body_sep": config.HEADER_BODY_SEP_BASE + 0.1,
+            "first_module_top_sep": config.FIRST_MODULE_TOP_SEP_BASE,
+        },
+        {
+            "name": "standard",
+            "label": "标准排版",
+            "module_sep": config.MODULE_SEP_BASE,
+            "item_sep": config.ITEM_SEP_BASE,
+            "line_stretch": config.LINE_STRETCH,
+            "header_body_sep": config.HEADER_BODY_SEP_BASE,
+            "first_module_top_sep": config.FIRST_MODULE_TOP_SEP_BASE,
+        },
+        {
+            "name": "slightly_compact",
+            "label": "微紧凑排版",
+            "module_sep": config.MODULE_SEP_BASE * 0.9,
+            "item_sep": 1.25,
+            "line_stretch": 1.18,
+            "header_body_sep": 1.0,
+            "first_module_top_sep": 0.0,
+        },
+        {
             "name": "compact",
+            "label": "紧凑排版",
             "module_sep": config.MODULE_SEP_BASE * 0.8,
             "item_sep": 1.0,
             "line_stretch": 1.15,
             "header_body_sep": 0.8,
+            "first_module_top_sep": 0.0,
+        },
+        {
+            "name": "ultra_compact",
+            "label": "极紧凑排版",
+            "module_sep": config.MODULE_SEP_BASE * 0.68,
+            "item_sep": 0.7,
+            "line_stretch": 1.12,
+            "header_body_sep": 0.6,
             "first_module_top_sep": 0.0,
         },
     ]
@@ -196,7 +245,12 @@ def optimize_layout_spacing(parsed_data):
         profile["name"]: estimate_resume_total_height(parsed_data, LayoutConfig, profile)
         for profile in profiles
     }
-    base_height = profile_heights["standard"]
+    standard_profile = next(
+        profile for profile in profiles
+        if profile["name"] == "standard"
+    )
+    standard_index = profiles.index(standard_profile)
+    base_height = profile_heights[standard_profile["name"]]
     valid_space = LayoutConfig.VALID_HEIGHT
     safe_space = valid_space * LayoutConfig.LAYOUT_SAFETY_RATIO
     
@@ -204,11 +258,13 @@ def optimize_layout_spacing(parsed_data):
         f"📊 预计算总高度: {base_height:.1f} mm / "
         f"可用空间: {valid_space:.1f} mm / 安全线: {safe_space:.1f} mm"
     )
-    
-    profiles_by_name = {profile["name"]: profile for profile in profiles}
-    standard = profiles_by_name["standard"]
-    full = profiles_by_name["full"]
-    compact = profiles_by_name["compact"]
+    print(
+        "📐 候选排版档位: "
+        + " / ".join(
+            f"{profile['label']} {profile_heights[profile['name']]:.1f}mm"
+            for profile in profiles
+        )
+    )
 
     # 方案 A：内容实在偏少时，不用夸张拉伸伪装饱满
     if base_height < valid_space * 0.82:
@@ -218,27 +274,35 @@ def optimize_layout_spacing(parsed_data):
             f"建议：补充科研、竞赛、项目或综合素质内容后再生成。"
         )
 
-    # 方案 B：标准排版有余量时，优先用小幅饱满排版
-    if base_height <= safe_space:
-        if profile_heights["full"] <= safe_space:
-            print("🔵 状态：内容有余量，使用【饱满排版】小幅增加间距。")
-            return profile_to_spacing(full)
-        print("✅ 状态：内容饱满，使用标准间距。")
-        return profile_to_spacing(standard)
-        
-    # 方案 C：标准排版接近满页或轻微超页，改用紧凑排版
-    if profile_heights["compact"] <= safe_space:
-        print("⚠️ 状态：接近满页或轻微超页，启动【紧凑排版】算法。")
-        return profile_to_spacing(compact)
-        
-    # 方案 D：字太多了，紧凑排版也无法安全容纳
-    compact_height = profile_heights["compact"]
-    compact_line_height = LayoutConfig.CHAR_WIDTH_MM * compact["line_stretch"]
+    fitting_profiles = [
+        profile for profile in profiles
+        if profile_heights[profile["name"]] <= safe_space
+    ]
+
+    if fitting_profiles:
+        chosen_profile = fitting_profiles[0]
+        chosen_index = profiles.index(chosen_profile)
+        chosen_height = profile_heights[chosen_profile["name"]]
+
+        if chosen_index < standard_index:
+            print(f"🔵 状态：内容有余量，使用【{chosen_profile['label']}】。")
+        elif chosen_index == standard_index:
+            print("✅ 状态：内容饱满，使用【标准排版】。")
+        else:
+            print(f"⚠️ 状态：接近满页或轻微超页，使用【{chosen_profile['label']}】。")
+
+        print(f"🎚️ 选中档位高度: {chosen_height:.1f} mm")
+        return profile_to_spacing(chosen_profile)
+
+    # 方案 D：字太多了，最紧凑排版也无法安全容纳
+    tightest_profile = profiles[-1]
+    tightest_height = profile_heights[tightest_profile["name"]]
+    tightest_line_height = LayoutConfig.CHAR_WIDTH_MM * tightest_profile["line_stretch"]
     raise ValueError(
         f"❌ 排版阻断：内容实在太多了！\n"
-        f"紧凑排版高度为 {compact_height:.1f}mm，超过安全线 {safe_space:.1f}mm。\n"
-        f"建议：请删减大约 {int(compact_height - safe_space)} 毫米等效高度的内容"
-        f"（约 {math.ceil((compact_height - safe_space) / compact_line_height)} 行正文）。"
+        f"{tightest_profile['label']}高度为 {tightest_height:.1f}mm，超过安全线 {safe_space:.1f}mm。\n"
+        f"建议：请删减大约 {int(tightest_height - safe_space)} 毫米等效高度的内容"
+        f"（约 {math.ceil((tightest_height - safe_space) / tightest_line_height)} 行正文）。"
     )
 
 # ==========================================
