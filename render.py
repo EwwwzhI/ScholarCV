@@ -1,8 +1,8 @@
 import os
 import re
-import unicodedata
 from config import LayoutConfig
 from style_config import StyleConfig
+from typography import TypographyMetrics
 
 # ==========================================
 # 0. 全局排版物理常量区 (在此统一调节图片尺寸与高度)
@@ -30,8 +30,14 @@ class RenderConfig:
     TITLE_LEFT_WIDTH = f"{LayoutConfig.TITLE_LEFT_WIDTH_MM:g}mm"
     TITLE_MIDDLE_WIDTH = f"{LayoutConfig.TITLE_MIDDLE_WIDTH_MM:g}mm"
     TITLE_RIGHT_WIDTH = f"{LayoutConfig.TITLE_RIGHT_WIDTH_MM:g}mm"
+    TITLE_FULL_WIDTH = f"{LayoutConfig.VALID_WIDTH:g}mm"
     SECTION_ICON_SIZE = StyleConfig.SECTION_ICON_SIZE
     SECTION_ICON_TEXT_GAP = StyleConfig.SECTION_ICON_TEXT_GAP
+    PAGE_BALANCE_GLUE = (
+        r"\vspace*{\fill}"
+        if getattr(LayoutConfig, "BALANCE_VERTICAL_WHITESPACE", False)
+        else ""
+    )
 
 # ==========================================
 # 1. 底层 LaTeX 骨架模板 (底部对齐 + 参数化占位符)
@@ -75,10 +81,14 @@ BASE_TEX_TEMPLATE = r"""
 
 \setlength{\parindent}{0pt}
 \pagestyle{empty}
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\emergencystretch=1.5em
 
 \begin{document}
 \thispagestyle{empty}
 \color{cvBody}
+[[PAGE_TOP_BALANCE_GLUE]]
 
 % ==========================================
 % 头部基本信息区
@@ -133,6 +143,7 @@ BASE_TEX_TEMPLATE = r"""
 % 动态经历正文区
 % ==========================================
 [[BODY_CONTENT]]
+[[PAGE_BOTTOM_BALANCE_GLUE]]
 
 \end{document}
 """
@@ -145,9 +156,14 @@ class LatexRenderer:
         self.data = resume_data
         self.spacing = spacing_config
         self.tex_code = BASE_TEX_TEMPLATE
+        self.typography = TypographyMetrics(LayoutConfig.CHAR_WIDTH_MM)
 
-    def _escape_latex(self, text):
+    def _escape_latex(self, text, preserve_visible_spaces=True):
         """转义用户文本中的 LaTeX 特殊字符"""
+        text = str(text)
+        if preserve_visible_spaces:
+            text = self.typography.protect_visible_cjk_spaces(text)
+
         escape_map = {
             '%': r'\%',
             '$': r'\$',
@@ -162,34 +178,59 @@ class LatexRenderer:
         text = re.sub(r'\*\*(.*?)\*\*', r'\\textbf{\1}', text)
         return text
 
-    def _equivalent_char_count(self, text):
-        """计算文本的近似中文等效宽度，用于标题截断。"""
-        width = 0.0
-        for char in text:
-            width_type = unicodedata.east_asian_width(char)
-            width += 1.0 if width_type in ("W", "F", "A") else 0.5
-        return width
+    def _should_wrap_subtitle_first_block(self, text):
+        """判断三级标题第一段是否需要独占一行。"""
+        return (
+            self.typography.measure_text_mm(text, "bold")
+            > LayoutConfig.TITLE_LEFT_WIDTH_MM - LayoutConfig.TITLE_LEFT_WIDTH_SAFETY_MM
+        )
 
-    def _truncate_equivalent_chars(self, text, max_chars):
-        """按等效中文字符数截断，保持 PDF 显示为单行稳定高度。"""
-        if self._equivalent_char_count(text) <= max_chars:
-            return text
+    def _render_subtitle(self, blocks):
+        """渲染三级标题；长第一段独占一行，二三段换到下一行。"""
+        if self._should_wrap_subtitle_first_block(blocks[0]):
+            block_a_head, block_a_tail = self.typography.split_text_by_width(
+                blocks[0],
+                LayoutConfig.VALID_WIDTH - LayoutConfig.TITLE_FULL_WIDTH_SAFETY_MM,
+                "bold",
+            )
+            block_a_tail = self.typography.truncate_text_by_width(
+                block_a_tail,
+                LayoutConfig.TITLE_LEFT_WIDTH_MM - LayoutConfig.TITLE_LEFT_WIDTH_SAFETY_MM,
+                "bold",
+            )
+            block_a = self._escape_latex(block_a_head)
+            block_a_tail = self._escape_latex(block_a_tail)
+            block_b = self._escape_latex(blocks[1])
+            block_c = self._escape_latex(blocks[2])
 
-        suffix = "..."
-        suffix_width = self._equivalent_char_count(suffix)
-        limit = max(max_chars - suffix_width, 0)
-        current_width = 0.0
-        chars = []
+            return (
+                "\\noindent"
+                f"\\begin{{tabular}}{{@{{}} L{{{RenderConfig.TITLE_LEFT_WIDTH}}} @{{}} "
+                f"C{{{RenderConfig.TITLE_MIDDLE_WIDTH}}} @{{}} "
+                f"R{{{RenderConfig.TITLE_RIGHT_WIDTH}}} @{{}}}}\n"
+                f"\\multicolumn{{3}}{{@{{}}l@{{}}}}"
+                f"{{\\makebox[{RenderConfig.TITLE_FULL_WIDTH}][l]{{\\textbf{{{block_a}}}}}}} \\\\\n"
+                f"\\textbf{{{block_a_tail}}} & {block_b} & {block_c} \\\\\n"
+                "\\end{tabular}\\par\n"
+            )
 
-        for char in text:
-            width_type = unicodedata.east_asian_width(char)
-            char_width = 1.0 if width_type in ("W", "F", "A") else 0.5
-            if current_width + char_width > limit:
-                break
-            chars.append(char)
-            current_width += char_width
+        block_a_text = self.typography.truncate_text_by_width(
+            blocks[0],
+            LayoutConfig.TITLE_LEFT_WIDTH_MM - LayoutConfig.TITLE_LEFT_WIDTH_SAFETY_MM,
+            "bold",
+        )
+        block_a = self._escape_latex(block_a_text)
+        block_b = self._escape_latex(blocks[1])
+        block_c = self._escape_latex(blocks[2])
 
-        return "".join(chars).rstrip() + suffix
+        return (
+            "\\noindent"
+            f"\\begin{{tabular}}{{@{{}} L{{{RenderConfig.TITLE_LEFT_WIDTH}}} @{{}} "
+            f"C{{{RenderConfig.TITLE_MIDDLE_WIDTH}}} @{{}} "
+            f"R{{{RenderConfig.TITLE_RIGHT_WIDTH}}} @{{}}}}\n"
+            f"\\textbf{{{block_a}}} & {block_b} & {block_c} \\\\\n"
+            "\\end{tabular}\\par\n"
+        )
 
     def _render_title_with_icon(self, title):
         """渲染带可选 PNG 图标的标题内容。"""
@@ -283,22 +324,7 @@ class LatexRenderer:
             for item in items:
                 if isinstance(item, dict):
                     blocks = item["blocks"]
-                    block_a_text = self._truncate_equivalent_chars(
-                        blocks[0],
-                        LayoutConfig.TITLE_LEFT_MAX_EQUIV_CHARS
-                    )
-                    block_a = self._escape_latex(block_a_text)
-                    block_b = self._escape_latex(blocks[1])
-                    block_c = self._escape_latex(blocks[2])
-                    
-                    body_tex += (
-                        "\\noindent"
-                        f"\\begin{{tabular}}{{@{{}} L{{{RenderConfig.TITLE_LEFT_WIDTH}}} @{{}} "
-                        f"C{{{RenderConfig.TITLE_MIDDLE_WIDTH}}} @{{}} "
-                        f"R{{{RenderConfig.TITLE_RIGHT_WIDTH}}} @{{}}}}\n"
-                        f"\\textbf{{{block_a}}} & {block_b} & {block_c} \\\\\n"
-                        "\\end{tabular}\\par\n"
-                    )
+                    body_tex += self._render_subtitle(blocks)
                     
                     if item["details"]:
                         body_tex += f"\\begin{{itemize}}[itemsep={item_sep}, parsep=0pt, topsep=2pt, partopsep=0pt, leftmargin=*]\n"
@@ -332,6 +358,8 @@ class LatexRenderer:
         self.tex_code = self.tex_code.replace("[[MARGIN_BOTTOM]]", RenderConfig.MARGIN_BOTTOM)
         self.tex_code = self.tex_code.replace("[[MARGIN_LEFT]]", RenderConfig.MARGIN_LEFT)
         self.tex_code = self.tex_code.replace("[[MARGIN_RIGHT]]", RenderConfig.MARGIN_RIGHT)
+        self.tex_code = self.tex_code.replace("[[PAGE_TOP_BALANCE_GLUE]]", RenderConfig.PAGE_BALANCE_GLUE)
+        self.tex_code = self.tex_code.replace("[[PAGE_BOTTOM_BALANCE_GLUE]]", RenderConfig.PAGE_BALANCE_GLUE)
         self.tex_code = self.tex_code.replace("[[LINE_STRETCH]]", self.spacing["line_stretch"])
         self.tex_code = self.tex_code.replace("[[MODULE_SEP]]", self.spacing["module_sep"])
         self.tex_code = self.tex_code.replace("[[SECTION_BODY_SEP]]", RenderConfig.SECTION_BODY_SEP)

@@ -1,39 +1,35 @@
-import unicodedata
 import math
 from config import LayoutConfig
+from typography import TypographyMetrics
 
-# ==========================================
-# 算法 1：中英文精准计重与行数推演
-# ==========================================
-def get_equivalent_char_count(text):
-    """
-    计算字符串的“等效中文字符数”。
-    全角字符（汉字、中文标点）权重为 1.0
-    半角字符（英文、数字、半角标点、空格）权重为 0.5
-    """
-    weight = 0.0
-    for char in text:
-        # 获取字符的东亚宽度属性
-        # 'W' (Wide) / 'F' (Fullwidth) -> 宽字符
-        # 'A' (Ambiguous) -> 视作宽字符以防万一
-        width_type = unicodedata.east_asian_width(char)
-        if width_type in ('W', 'F', 'A'):
-            weight += 1.0
-        else:
-            weight += 0.5
-    return weight
+TYPOGRAPHY = TypographyMetrics(LayoutConfig.CHAR_WIDTH_MM)
 
-def calculate_text_lines(text, max_chars=LayoutConfig.MAX_CHARS_PER_LINE):
+def calculate_text_lines(text, width_mm=None, config=LayoutConfig):
     """
     推演一段文本在特定行宽下需要占据的绝对行数
     """
-    equiv_count = get_equivalent_char_count(text)
-    # 哪怕只超了 0.1 个字，物理上也会变成两行，所以必须向上取整
-    return math.ceil(equiv_count / max_chars)
+    if width_mm is None:
+        width_mm = config.VALID_WIDTH
+    return TYPOGRAPHY.estimate_lines(text, width_mm, markdown_bold=True)
 
-def calculate_max_chars_for_width(width_mm, config=LayoutConfig):
-    """根据实际可用物理宽度推算单行可容纳的等效中文字符数。"""
-    return max(1, int(width_mm / config.CHAR_WIDTH_MM))
+def should_wrap_subtitle_first_block(text, config=LayoutConfig):
+    """判断三级标题第一段是否需要独占一行。"""
+    return (
+        TYPOGRAPHY.measure_text_mm(text, "bold")
+        > config.TITLE_LEFT_WIDTH_MM - config.TITLE_LEFT_WIDTH_SAFETY_MM
+    )
+
+def estimate_subtitle_height(blocks, config=LayoutConfig, line_stretch=None):
+    """估算三级标题高度；长第一段会触发两行标题布局。"""
+    height = config.SUBTITLE_HEIGHT
+    if should_wrap_subtitle_first_block(blocks[0], config):
+        line_height = (
+            config.line_height_mm(line_stretch)
+            if hasattr(config, "line_height_mm")
+            else config.LINE_HEIGHT_MM
+        )
+        height += line_height
+    return height
 
 def format_mm(value):
     """把数值毫米转换为 LaTeX 可直接使用的尺寸字符串。"""
@@ -90,22 +86,19 @@ def estimate_block_height(
         if hasattr(config, "line_height_mm")
         else config.CHAR_WIDTH_MM * line_stretch
     )
-    item_max_chars = calculate_max_chars_for_width(
-        config.VALID_WIDTH - config.ITEMIZE_INDENT_MM,
-        config
-    )
+    item_width_mm = config.VALID_WIDTH - config.ITEMIZE_INDENT_MM
     
     for item in items:
         # 如果是深度结构（带 ### 的三段式字典）
         if isinstance(item, dict):
             # 1. 加上三级子标题的高度
-            total_height += config.SUBTITLE_HEIGHT
+            total_height += estimate_subtitle_height(item["blocks"], config, line_stretch)
             
             # 2. 累加下属正文列表 (- xxx) 的高度
             if item["details"]:
                 total_height += config.ITEMIZE_TOPSEP_MM * 2
                 for index, detail_text in enumerate(item["details"]):
-                    lines = calculate_text_lines(detail_text, item_max_chars)
+                    lines = calculate_text_lines(detail_text, item_width_mm, config)
                     # 文本高度 = 行数 * 当前 profile 单行高度
                     total_height += (lines * line_height)
                     # itemsep 只出现在列表项之间
@@ -119,7 +112,7 @@ def estimate_block_height(
             
         # 如果是扁平结构（只有字符串，如“综合素质”）
         elif isinstance(item, str):
-            lines = calculate_text_lines(item, item_max_chars)
+            lines = calculate_text_lines(item, item_width_mm, config)
             total_height += config.ITEMIZE_TOPSEP_MM * 2
             total_height += (lines * line_height)
 

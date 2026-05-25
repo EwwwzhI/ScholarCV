@@ -40,7 +40,7 @@ GitHub主页:
 
 ## 项目经历
 
-### 面向 Jetson 边缘实时推理的轻量化 Mamba 高光谱重建网络 | 研究项目 | 核心成员
+### 《 EdgeRCBEV: A Jetson-Based Real-Time and Lightweight Radar-Camera BEV Framework for 3D Object Detection 》 | 2025.09 - 2025.12 | 核心成员
 
 - **工作背景：** 现有光谱重建算法普遍存在计算复杂度高、推理延迟大、边缘设备部署困难等问题，难以满足实时高光谱成像应用需求。
 - **核心贡献：** 针对 CASSI 高光谱重建任务，提出 EdgeSG-Mamba，一种面向边缘部署的轻量化光谱重建框架，包含高效的 Spectral-Gated Mamba 混合模块、下采样注意力感知机制、多阶段物理一致性重建流程和 Jetson 端推理加速策略。

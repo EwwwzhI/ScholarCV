@@ -1,5 +1,7 @@
+import math
 import os
 from style_config import StyleConfig
+from typography import TypographyMetrics
 
 
 def _latex_length_to_mm(value):
@@ -43,10 +45,11 @@ class LayoutConfig:
     A4_WIDTH = 210.0
 
     # 严格对应 LaTeX 模板中的 \geometry 设置
-    MARGIN_TOP = 8.0
+    MARGIN_TOP = 4.0
     MARGIN_BOTTOM = 6.0
     MARGIN_LEFT = 12.0
     MARGIN_RIGHT = 12.0
+    BALANCE_VERTICAL_WHITESPACE = True
 
     # [核心指标] 绝对可用排版空间
     VALID_HEIGHT = A4_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM
@@ -86,8 +89,8 @@ class LayoutConfig:
     # 头部基本信息区：左侧校徽 + 基本信息，右侧证件照
     # LaTeX minipage 会被更高的一侧撑开，因此按证件照/左侧内容最大值估算
     LOGO_HEIGHT_MM = 14.0
-    AVATAR_WIDTH_MM = 30.0
-    AVATAR_HEIGHT_MM = 40.0
+    AVATAR_WIDTH_MM = 33.0
+    AVATAR_HEIGHT_MM = 44.0
     LOGO_INFO_SEP_BASE = 0.0
 
     # 基本信息标题区：标题行高度取文字与图标中的较大值，再加标题后距和分割线
@@ -170,17 +173,37 @@ class LayoutConfig:
     @classmethod
     def section_title_height_mm(cls, section_name):
         """按具体模块是否真的渲染图标，估算该模块标题高度。"""
+        metrics = TypographyMetrics(cls.CHAR_WIDTH_MM)
+        icon_height = _rendered_icon_height_mm(section_name)
+        icon_width_budget = (
+            _latex_length_to_mm(StyleConfig.SECTION_ICON_TEXT_GAP)
+            + icon_height
+            if icon_height
+            else 0.0
+        )
+        title_width = metrics.measure_text_mm(section_name, "large_bold")
+        title_lines = max(
+            1,
+            math.ceil(title_width / max(cls.VALID_WIDTH - icon_width_budget, 1.0)),
+        )
         title_line_height = max(
             cls.LARGE_TITLE_TEXT_HEIGHT_MM,
-            _rendered_icon_height_mm(section_name),
+            icon_height,
         )
-        return title_line_height + cls.SECTION_TITLE_AFTER_SEP_MM + cls.TITLE_RULE_HEIGHT_MM
+        return (
+            title_line_height * title_lines
+            + cls.SECTION_TITLE_AFTER_SEP_MM
+            + cls.TITLE_RULE_HEIGHT_MM
+        )
 
     FIRST_MODULE_TOP_SEP_BASE = 0.0
     TITLE_LEFT_WIDTH_MM = 96.0
     TITLE_RIGHT_WIDTH_MM = 32.0
     TITLE_MIDDLE_WIDTH_MM = VALID_WIDTH - TITLE_LEFT_WIDTH_MM - TITLE_RIGHT_WIDTH_MM
     TITLE_LEFT_MAX_EQUIV_CHARS = 24
+    TITLE_FIRST_WRAP_TRIGGER_EQUIV_CHARS = TITLE_LEFT_MAX_EQUIV_CHARS
+    TITLE_FULL_WIDTH_SAFETY_MM = 2.0
+    TITLE_LEFT_WIDTH_SAFETY_MM = 2.0
 
     # 三级子项目标题高度 (如：### 杭州电子科技大学...)
     # 包含粗体字高度和少量下方留白
@@ -198,8 +221,8 @@ class LayoutConfig:
     ITEMIZE_TOPSEP_MM = 2.0 * PT_TO_MM
 
     # 连续排版求解：最终估算高度优先落在可用高度的这个区间内
-    LAYOUT_TARGET_MIN_RATIO = 0.95
-    LAYOUT_TARGET_MAX_RATIO = 0.99
+    LAYOUT_TARGET_MIN_RATIO = 0.98
+    LAYOUT_TARGET_MAX_RATIO = 1.0
     LAYOUT_UNDERFULL_BLOCK_RATIO = 0.82
 
     # 连续排版求解：各间距参数的上下限。求解器会在 min 和 max 之间连续插值。
@@ -215,6 +238,6 @@ class LayoutConfig:
     FIRST_MODULE_TOP_SEP_MAX_MM = FIRST_MODULE_TOP_SEP_BASE
 
     # 硬安全线：连续求解的目标区间不能超过该安全线。
-    LAYOUT_SAFETY_RATIO = 0.99
+    LAYOUT_SAFETY_RATIO = 1.0
     LAYOUT_SAFETY_MARGIN_MM = 2.0
     LAYOUT_SOLVER_EPSILON_MM = 0.1
