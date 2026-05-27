@@ -13,16 +13,34 @@ def calculate_text_lines(text, width_mm=None, config=LayoutConfig):
     return TYPOGRAPHY.estimate_lines(text, width_mm, markdown_bold=True)
 
 def should_wrap_subtitle_first_block(text, config=LayoutConfig):
-    """判断三级标题第一段是否需要独占一行。"""
+    """判断三级标题第一段是否超出固定左列安全宽度。"""
     return (
         TYPOGRAPHY.measure_text_mm(text, "bold")
         > config.TITLE_LEFT_WIDTH_MM - config.TITLE_LEFT_WIDTH_SAFETY_MM
     )
 
+def can_render_subtitle_inline(blocks, config=LayoutConfig):
+    """判断超过左列阈值的标题是否会碰到居中的第二段。"""
+    title_width = TYPOGRAPHY.measure_text_mm(blocks[0], "bold")
+    middle_width = TYPOGRAPHY.measure_text_mm(blocks[1], "normal")
+    middle_left_slack = max(
+        0.0,
+        (config.TITLE_MIDDLE_WIDTH_MM - middle_width) / 2,
+    )
+    inline_limit = (
+        config.TITLE_LEFT_WIDTH_MM
+        + middle_left_slack
+        - config.TITLE_CENTER_COLLISION_GAP_MM
+    )
+    return title_width <= inline_limit
+
 def estimate_subtitle_height(blocks, config=LayoutConfig, line_stretch=None):
-    """估算三级标题高度；长第一段会触发两行标题布局。"""
+    """估算三级标题高度；只有真正长标题才按两行计高。"""
     height = config.SUBTITLE_HEIGHT
-    if should_wrap_subtitle_first_block(blocks[0], config):
+    if (
+        should_wrap_subtitle_first_block(blocks[0], config)
+        and not can_render_subtitle_inline(blocks, config)
+    ):
         line_height = (
             config.line_height_mm(line_stretch)
             if hasattr(config, "line_height_mm")

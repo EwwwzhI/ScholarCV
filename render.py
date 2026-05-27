@@ -179,15 +179,44 @@ class LatexRenderer:
         return text
 
     def _should_wrap_subtitle_first_block(self, text):
-        """判断三级标题第一段是否需要独占一行。"""
+        """判断三级标题第一段是否超出固定左列安全宽度。"""
         return (
             self.typography.measure_text_mm(text, "bold")
             > LayoutConfig.TITLE_LEFT_WIDTH_MM - LayoutConfig.TITLE_LEFT_WIDTH_SAFETY_MM
         )
 
+    def _can_render_subtitle_inline(self, blocks):
+        """判断超过左列阈值的标题是否会碰到居中的第二段。"""
+        title_width = self.typography.measure_text_mm(blocks[0], "bold")
+        middle_width = self.typography.measure_text_mm(blocks[1], "normal")
+        middle_left_slack = max(
+            0.0,
+            (LayoutConfig.TITLE_MIDDLE_WIDTH_MM - middle_width) / 2,
+        )
+        inline_limit = (
+            LayoutConfig.TITLE_LEFT_WIDTH_MM
+            + middle_left_slack
+            - LayoutConfig.TITLE_CENTER_COLLISION_GAP_MM
+        )
+        return title_width <= inline_limit
+
     def _render_subtitle(self, blocks):
-        """渲染三级标题；长第一段独占一行，二三段换到下一行。"""
+        """渲染三级标题；边界长标题同排，真正长标题仍独占首行。"""
         if self._should_wrap_subtitle_first_block(blocks[0]):
+            if self._can_render_subtitle_inline(blocks):
+                block_a = self._escape_latex(blocks[0])
+                block_b = self._escape_latex(blocks[1])
+                block_c = self._escape_latex(blocks[2])
+
+                return (
+                    "\\noindent"
+                    f"\\begin{{tabular}}{{@{{}} L{{{RenderConfig.TITLE_LEFT_WIDTH}}} @{{}} "
+                    f"C{{{RenderConfig.TITLE_MIDDLE_WIDTH}}} @{{}} "
+                    f"R{{{RenderConfig.TITLE_RIGHT_WIDTH}}} @{{}}}}\n"
+                    f"\\makebox[{RenderConfig.TITLE_LEFT_WIDTH}][l]{{\\textbf{{{block_a}}}}} & {block_b} & {block_c} \\\\\n"
+                    "\\end{tabular}\\par\n"
+                )
+
             block_a_head, block_a_tail = self.typography.split_text_by_width(
                 blocks[0],
                 LayoutConfig.VALID_WIDTH - LayoutConfig.TITLE_FULL_WIDTH_SAFETY_MM,
