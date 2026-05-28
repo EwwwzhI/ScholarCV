@@ -25,6 +25,9 @@
 __pycache__/
 *.py[cod]
 
+# Generated preprocessed images referenced by output_resume.tex
+temp/
+
 # Local OS/editor noise
 .DS_Store
 Thumbs.db

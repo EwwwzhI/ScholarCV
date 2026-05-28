@@ -2,14 +2,25 @@ import os
 from PIL import Image, ImageChops
 
 class ImageProcessor:
+    TEMP_DIR = "temp"
+
     @staticmethod
-    def process_avatar(input_path, output_path="processed_avatar.jpg", target_ratio=2.6/3.6):
+    def _processed_output_path(input_path):
+        """生成 temp 目录下与原文件同名的预处理图片路径。"""
+        os.makedirs(ImageProcessor.TEMP_DIR, exist_ok=True)
+        return os.path.join(ImageProcessor.TEMP_DIR, os.path.basename(input_path))
+
+    @staticmethod
+    def process_avatar(input_path, output_path=None, target_ratio=2.6/3.6):
         """
         对证件照进行无损的“智能中心裁切 (Center Crop)”。
         确保无论用户提供的照片多长多宽，都会被裁切成目标排版比例。
         """
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"❌ [图片丢失] 找不到证件照文件：{input_path}")
+
+        if output_path is None:
+            output_path = ImageProcessor._processed_output_path(input_path)
             
         img = Image.open(input_path)
         img_w, img_h = img.size
@@ -39,7 +50,7 @@ class ImageProcessor:
         return output_path
 
     @staticmethod
-    def process_logo(input_path, output_path="processed_logo.png", target_height=300):
+    def process_logo(input_path, output_path=None, target_height=300):
         """
         对校徽进行“边界吸附裁切 (Auto-Crop)”与分辨率控制。
         1. 自动消除图片四周多余的白边或透明边，确保 LaTeX 的 height 绝对精准。
@@ -47,6 +58,9 @@ class ImageProcessor:
         """
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"❌ [图片丢失] 找不到校徽文件：{input_path}")
+
+        if output_path is None:
+            output_path = ImageProcessor._processed_output_path(input_path)
             
         img = Image.open(input_path)
         
@@ -78,6 +92,8 @@ class ImageProcessor:
             resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
             img = img.resize((new_w, new_h), resample_filter)
             
-        # 必须存为 PNG 格式，以保留校徽可能的透明背景
-        img.save(output_path, "PNG")
+        if os.path.splitext(output_path)[1].lower() in (".jpg", ".jpeg"):
+            img = img.convert("RGB")
+
+        img.save(output_path)
         return output_path

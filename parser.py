@@ -97,12 +97,13 @@ def parse_resume_md(file_path):
             content = line[4:].strip()
             parts = [p.strip() for p in content.split('|')]
             
-            if len(parts) != 3:
+            if len(parts) not in (1, 3, 4):
                 raise ValueError(
                     f"\n❌ [排版阻断] 子标题切分错误：\n"
-                    f"在【{current_section}】模块中，规定格式为 '块A | 块B | 块C'。\n"
+                    f"在【{current_section}】模块中，三级标题支持 1 段、3 段或 4 段。\n"
+                    f"可用格式：'完整标题'、'块A | 块B | 块C'、'块A | 块B | 块C | 块D'。\n"
                     f"-> 你的输入是: {line}\n"
-                    f"请检查是否漏写或多写了英文 '|' 符号。"
+                    f"请检查英文 '|' 符号数量是否正确。"
                 )
             
             current_deep_item = {"blocks": parts, "details": []}

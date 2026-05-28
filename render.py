@@ -30,7 +30,16 @@ class RenderConfig:
     TITLE_LEFT_WIDTH = f"{LayoutConfig.TITLE_LEFT_WIDTH_MM:g}mm"
     TITLE_MIDDLE_WIDTH = f"{LayoutConfig.TITLE_MIDDLE_WIDTH_MM:g}mm"
     TITLE_RIGHT_WIDTH = f"{LayoutConfig.TITLE_RIGHT_WIDTH_MM:g}mm"
+    TITLE_FOUR_FIRST_WIDTH = f"{LayoutConfig.TITLE_FOUR_FIRST_WIDTH_MM:g}mm"
+    TITLE_FOUR_SECOND_WIDTH = f"{LayoutConfig.TITLE_FOUR_SECOND_WIDTH_MM:g}mm"
     TITLE_FULL_WIDTH = f"{LayoutConfig.VALID_WIDTH:g}mm"
+    PROJECT_SEP = f"{LayoutConfig.PROJECT_SEP_BASE:g}mm"
+    PROJECT_SEPARATOR_AFTER_SEP = f"{LayoutConfig.PROJECT_SEPARATOR_AFTER_SEP_MM:g}mm"
+    PROJECT_SEPARATOR_DASH_WIDTH = f"{LayoutConfig.PROJECT_SEPARATOR_DASH_WIDTH_MM:g}mm"
+    PROJECT_SEPARATOR_DASH_GAP = f"{LayoutConfig.PROJECT_SEPARATOR_DASH_GAP_MM:g}mm"
+    PROJECT_SEPARATOR_THICKNESS = f"{LayoutConfig.PROJECT_SEPARATOR_THICKNESS_PT:g}pt"
+    ITEMIZE_LEFT_MARGIN = f"{LayoutConfig.ITEMIZE_INDENT_MM:g}mm"
+    ITEMIZE_TOPSEP = f"{LayoutConfig.ITEMIZE_TOPSEP_MM:g}mm"
     SECTION_ICON_SIZE = StyleConfig.SECTION_ICON_SIZE
     SECTION_ICON_TEXT_GAP = StyleConfig.SECTION_ICON_TEXT_GAP
     PAGE_BALANCE_GLUE = (
@@ -200,8 +209,19 @@ class LatexRenderer:
         )
         return title_width <= inline_limit
 
-    def _render_subtitle(self, blocks):
-        """渲染三级标题；边界长标题同排，真正长标题仍独占首行。"""
+    def _render_single_block_subtitle(self, blocks):
+        """渲染单段三级标题，整行加粗并自然换行。"""
+        block_a = self._escape_latex(blocks[0])
+
+        return (
+            "\\noindent"
+            f"\\begin{{tabular}}{{@{{}} L{{{RenderConfig.TITLE_FULL_WIDTH}}} @{{}}}}\n"
+            f"\\textbf{{{block_a}}} \\\\\n"
+            "\\end{tabular}\\par\n"
+        )
+
+    def _render_three_block_subtitle(self, blocks):
+        """渲染三段三级标题；边界长标题同排，真正长标题仍独占首行。"""
         if self._should_wrap_subtitle_first_block(blocks[0]):
             if self._can_render_subtitle_inline(blocks):
                 block_a = self._escape_latex(blocks[0])
@@ -259,6 +279,60 @@ class LatexRenderer:
             f"R{{{RenderConfig.TITLE_RIGHT_WIDTH}}} @{{}}}}\n"
             f"\\textbf{{{block_a}}} & {block_b} & {block_c} \\\\\n"
             "\\end{tabular}\\par\n"
+        )
+
+    def _render_four_block_subtitle(self, blocks):
+        """渲染四段三级标题：拆分原左列，保留原中列和右列。"""
+        block_a = self._escape_latex(blocks[0])
+        block_b = self._escape_latex(blocks[1])
+        block_c = self._escape_latex(blocks[2])
+        block_d = self._escape_latex(blocks[3])
+
+        return (
+            "\\noindent"
+            f"\\begin{{tabular}}{{@{{}} L{{{RenderConfig.TITLE_FOUR_FIRST_WIDTH}}} @{{}} "
+            f"C{{{RenderConfig.TITLE_FOUR_SECOND_WIDTH}}} @{{}} "
+            f"C{{{RenderConfig.TITLE_MIDDLE_WIDTH}}} @{{}} "
+            f"R{{{RenderConfig.TITLE_RIGHT_WIDTH}}} @{{}}}}\n"
+            f"\\textbf{{{block_a}}} & {block_b} & {block_c} & {block_d} \\\\\n"
+            "\\end{tabular}\\par\n"
+        )
+
+    def _render_subtitle(self, blocks):
+        """按三级标题段数分发渲染。"""
+        if len(blocks) == 1:
+            return self._render_single_block_subtitle(blocks)
+        if len(blocks) == 3:
+            return self._render_three_block_subtitle(blocks)
+        if len(blocks) == 4:
+            return self._render_four_block_subtitle(blocks)
+
+        raise ValueError("三级标题仅支持 1 段、3 段或 4 段。")
+
+    def _render_project_separator(self):
+        """渲染同一模块内多个三级标题项目之间的虚线分隔。"""
+        project_sep_before = self.spacing.get("project_sep", RenderConfig.PROJECT_SEP)
+        project_sep_after = RenderConfig.PROJECT_SEPARATOR_AFTER_SEP
+        before_vspace = (
+            f"\\vspace{{{project_sep_before}}}\n"
+            if project_sep_before != "0mm"
+            else ""
+        )
+        after_vspace = (
+            f"\\vspace{{{project_sep_after}}}\n"
+            if project_sep_after != "0mm"
+            else ""
+        )
+        return (
+            before_vspace
+            +
+            "\\noindent\\raisebox{0pt}[0pt][0pt]{\\hbox to \\linewidth{\\color{cvRule}"
+            "\\xleaders\\hbox{"
+            f"\\rule{{{RenderConfig.PROJECT_SEPARATOR_DASH_WIDTH}}}"
+            f"{{{RenderConfig.PROJECT_SEPARATOR_THICKNESS}}}"
+            f"\\hskip{RenderConfig.PROJECT_SEPARATOR_DASH_GAP}"
+            "}\\hfill\\kern0pt}}\\par\n"
+            f"{after_vspace}"
         )
 
     def _render_title_with_icon(self, title):
@@ -349,14 +423,19 @@ class LatexRenderer:
                 body_tex += f"\\cvsection[{first_top_sep}]{{{section_title}}}\n\n"
             else:
                 body_tex += f"\\cvsection{{{section_title}}}\n\n"
-            
+            subtitle_count = 0
             for item in items:
                 if isinstance(item, dict):
+                    if subtitle_count > 0:
+                        body_tex += self._render_project_separator()
+
                     blocks = item["blocks"]
                     body_tex += self._render_subtitle(blocks)
+                    subtitle_count += 1
                     
                     if item["details"]:
-                        body_tex += f"\\begin{{itemize}}[itemsep={item_sep}, parsep=0pt, topsep=2pt, partopsep=0pt, leftmargin=*]\n"
+                        body_tex += f"\\vspace{{{item_sep}}}\n"
+                        body_tex += f"\\begin{{itemize}}[itemsep={item_sep}, parsep=0pt, topsep={RenderConfig.ITEMIZE_TOPSEP}, partopsep=0pt, leftmargin={RenderConfig.ITEMIZE_LEFT_MARGIN}]\n"
                         for detail in item["details"]:
                             safe_detail = self._escape_latex(detail)
                             body_tex += f"    \\item {safe_detail}\n"
@@ -371,7 +450,8 @@ class LatexRenderer:
                         body_tex += f"    \\item {safe_text}\n\\end{{itemize}}\n\n"
                     else:
                         safe_text = self._escape_latex(item)
-                        body_tex += f"\\begin{{itemize}}[itemsep={item_sep}, parsep=0pt, topsep=2pt, partopsep=0pt, leftmargin=*]\n"
+                        body_tex += f"\\vspace{{{item_sep}}}\n"
+                        body_tex += f"\\begin{{itemize}}[itemsep={item_sep}, parsep=0pt, topsep={RenderConfig.ITEMIZE_TOPSEP}, partopsep=0pt, leftmargin={RenderConfig.ITEMIZE_LEFT_MARGIN}]\n"
                         body_tex += f"    \\item {safe_text}\n\\end{{itemize}}\n\n"
 
         self.tex_code = self.tex_code.replace("[[BODY_CONTENT]]", body_tex)

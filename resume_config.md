@@ -29,25 +29,23 @@ GitHub主页:
 
 ## 教育背景
 
-### 东南大学 | 电子信息 | 2025.09 - 至今
+### 东南大学 | 硕士在读 | 电子信息 | 2025.09 - 至今
 
 - **研究方向：** 高光谱图像重建、轻量化神经网络、边缘端加速部署
 - **主修课程：** 数值分析、信息技术基础、高级 FPGA 设计
 
-### 浙江海洋大学 | 电子信息工程 | 2021.09 - 2025.06
+### 浙江海洋大学 | 学士学位 |电子信息工程 | 2021.09 - 2025.06
 
 - **主修课程：** 数字电子技术基础、模拟电子技术基础、信号与系统、数字信号处理
 
 ## 项目经历
 
-### 《 EdgeRCBEV: A Jetson-Based Real-Time and Lightweight Radar-Camera BEV Framework for 3D Object Detection 》 | 2025.09 - 2025.12 | 核心成员
+### 《 EdgeRCBEV: A Jetson-Based Real-Time and Lightweight Radar-Camera BEV Framework for 3D Object Detection 》 | 2025.09 - 2026.04 | 核心成员
 
 - **工作背景：** 现有光谱重建算法普遍存在计算复杂度高、推理延迟大、边缘设备部署困难等问题，难以满足实时高光谱成像应用需求。
 - **核心贡献：** 针对 CASSI 高光谱重建任务，提出 EdgeSG-Mamba，一种面向边缘部署的轻量化光谱重建框架，包含高效的 Spectral-Gated Mamba 混合模块、下采样注意力感知机制、多阶段物理一致性重建流程和 Jetson 端推理加速策略。
 - **成果指标：** 在 Jetson 平台上实现实时光谱重建推理，相比基准模型推理速度提升约 7.3 倍，同时保持约 40 dB PSNR 的高质量重建效果。
 - **技术栈：** Python、PyTorch、TensorRT、C++、Jetson
-
-## 竞赛经历
 
 ### 东南大学第一届研究生 PLD 设计竞赛 | 一等奖(冠军) | 队长
 

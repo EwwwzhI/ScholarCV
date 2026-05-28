@@ -34,20 +34,64 @@ def can_render_subtitle_inline(blocks, config=LayoutConfig):
     )
     return title_width <= inline_limit
 
+def subtitle_line_height(config=LayoutConfig, line_stretch=None):
+    """返回三级标题估算使用的单行高度。"""
+    if hasattr(config, "line_height_mm"):
+        return config.line_height_mm(line_stretch)
+    return config.LINE_HEIGHT_MM
+
 def estimate_subtitle_height(blocks, config=LayoutConfig, line_stretch=None):
-    """估算三级标题高度；只有真正长标题才按两行计高。"""
+    """按三级标题段数估算高度。"""
     height = config.SUBTITLE_HEIGHT
-    if (
-        should_wrap_subtitle_first_block(blocks[0], config)
-        and not can_render_subtitle_inline(blocks, config)
-    ):
-        line_height = (
-            config.line_height_mm(line_stretch)
-            if hasattr(config, "line_height_mm")
-            else config.LINE_HEIGHT_MM
+    line_height = subtitle_line_height(config, line_stretch)
+
+    if len(blocks) == 1:
+        lines = TYPOGRAPHY.estimate_lines(
+            f"**{blocks[0]}**",
+            config.VALID_WIDTH,
+            markdown_bold=True,
         )
-        height += line_height
-    return height
+        return height + max(0, lines - 1) * line_height
+
+    if len(blocks) == 3:
+        middle_lines = TYPOGRAPHY.estimate_lines(
+            blocks[1],
+            config.TITLE_MIDDLE_WIDTH_MM,
+            markdown_bold=True,
+        )
+        right_lines = TYPOGRAPHY.estimate_lines(
+            blocks[2],
+            config.TITLE_RIGHT_WIDTH_MM,
+            markdown_bold=True,
+        )
+        if (
+            should_wrap_subtitle_first_block(blocks[0], config)
+            and not can_render_subtitle_inline(blocks, config)
+        ):
+            second_row_lines = max(1, middle_lines, right_lines)
+            rendered_lines = 1 + second_row_lines
+        else:
+            rendered_lines = max(1, middle_lines, right_lines)
+        return height + max(0, rendered_lines - 1) * line_height
+
+    if len(blocks) == 4:
+        column_specs = [
+            (blocks[0], config.TITLE_FOUR_FIRST_WIDTH_MM, True),
+            (blocks[1], config.TITLE_FOUR_SECOND_WIDTH_MM, False),
+            (blocks[2], config.TITLE_MIDDLE_WIDTH_MM, False),
+            (blocks[3], config.TITLE_RIGHT_WIDTH_MM, False),
+        ]
+        max_lines = max(
+            TYPOGRAPHY.estimate_lines(
+                f"**{text}**" if is_bold else text,
+                width,
+                markdown_bold=True,
+            )
+            for text, width, is_bold in column_specs
+        )
+        return height + max(0, max_lines - 1) * line_height
+
+    raise ValueError("三级标题仅支持 1 段、3 段或 4 段。")
 
 def format_mm(value):
     """把数值毫米转换为 LaTeX 可直接使用的尺寸字符串。"""
@@ -60,6 +104,14 @@ def clamp(value, min_value, max_value):
 def interpolate(min_value, max_value, ratio):
     """按 ratio 在 min 和 max 之间线性插值。"""
     return min_value + (max_value - min_value) * ratio
+
+def project_separator_height_mm(project_sep, config=LayoutConfig):
+    """估算三级项目虚线分隔块的总高度。"""
+    return (
+        project_sep
+        + config.PROJECT_SEPARATOR_AFTER_SEP_MM
+        + config.PROJECT_SEPARATOR_ESTIMATED_HEIGHT_MM
+    )
 
 def get_safe_layout_space(config=LayoutConfig):
     """返回连续求解时允许使用的保守安全高度。"""
@@ -77,6 +129,7 @@ def estimate_block_height(
     top_sep=None,
     module_sep=None,
     item_sep=None,
+    project_sep=None,
     line_stretch=None,
 ):
     """
@@ -87,6 +140,8 @@ def estimate_block_height(
         module_sep = config.MODULE_SEP_BASE
     if item_sep is None:
         item_sep = config.ITEM_SEP_BASE
+    if project_sep is None:
+        project_sep = config.PROJECT_SEP_BASE
     if line_stretch is None:
         line_stretch = config.LINE_STRETCH
     if top_sep is None:
@@ -105,16 +160,21 @@ def estimate_block_height(
         else config.CHAR_WIDTH_MM * line_stretch
     )
     item_width_mm = config.VALID_WIDTH - config.ITEMIZE_INDENT_MM
+    subtitle_count = 0
     
     for item in items:
-        # 如果是深度结构（带 ### 的三段式字典）
+        # 如果是深度结构（带 ### 的字典）
         if isinstance(item, dict):
+            if subtitle_count > 0:
+                total_height += project_separator_height_mm(project_sep, config)
+
             # 1. 加上三级子标题的高度
             total_height += estimate_subtitle_height(item["blocks"], config, line_stretch)
+            subtitle_count += 1
             
             # 2. 累加下属正文列表 (- xxx) 的高度
             if item["details"]:
-                total_height += config.ITEMIZE_TOPSEP_MM * 2
+                total_height += item_sep + config.ITEMIZE_TOPSEP_MM * 2
                 for index, detail_text in enumerate(item["details"]):
                     lines = calculate_text_lines(detail_text, item_width_mm, config)
                     # 文本高度 = 行数 * 当前 profile 单行高度
@@ -125,17 +185,13 @@ def estimate_block_height(
             else:
                 total_height += 2.0 * config.PT_TO_MM
                 
-            # 加上子项目之间的大间距
-            total_height += module_sep
-            
         # 如果是扁平结构（只有字符串，如“综合素质”）
         elif isinstance(item, str):
             lines = calculate_text_lines(item, item_width_mm, config)
-            total_height += config.ITEMIZE_TOPSEP_MM * 2
+            total_height += item_sep + config.ITEMIZE_TOPSEP_MM * 2
             total_height += (lines * line_height)
 
-    # 减去最后多加的一个多余间距，追求绝对精准
-    return total_height - module_sep
+    return total_height
 
 def estimate_resume_total_height(parsed_data, config=LayoutConfig, profile=None):
     """
@@ -145,6 +201,7 @@ def estimate_resume_total_height(parsed_data, config=LayoutConfig, profile=None)
         profile = {
             "module_sep": config.MODULE_SEP_BASE,
             "item_sep": config.ITEM_SEP_BASE,
+            "project_sep": config.PROJECT_SEP_BASE,
             "line_stretch": config.LINE_STRETCH,
             "header_body_sep": config.HEADER_BODY_SEP_BASE,
             "first_module_top_sep": config.FIRST_MODULE_TOP_SEP_BASE,
@@ -177,6 +234,7 @@ def estimate_resume_total_height(parsed_data, config=LayoutConfig, profile=None)
             top_sep=top_sep,
             module_sep=profile["module_sep"],
             item_sep=profile["item_sep"],
+            project_sep=profile["project_sep"],
             line_stretch=profile["line_stretch"],
         )
         total_mm += block_height
@@ -192,6 +250,7 @@ def profile_from_layout_ratio(ratio, config=LayoutConfig):
         "layout_ratio": ratio,
         "module_sep": interpolate(config.MODULE_SEP_MIN_MM, config.MODULE_SEP_MAX_MM, ratio),
         "item_sep": interpolate(config.ITEM_SEP_MIN_MM, config.ITEM_SEP_MAX_MM, ratio),
+        "project_sep": interpolate(config.PROJECT_SEP_MIN_MM, config.PROJECT_SEP_MAX_MM, ratio),
         "line_stretch": interpolate(config.LINE_STRETCH_MIN, config.LINE_STRETCH_MAX, ratio),
         "header_body_sep": interpolate(
             config.HEADER_BODY_SEP_MIN_MM,
@@ -212,6 +271,7 @@ def standard_layout_profile(config=LayoutConfig):
         "label": "标准排版",
         "module_sep": config.MODULE_SEP_BASE,
         "item_sep": config.ITEM_SEP_BASE,
+        "project_sep": config.PROJECT_SEP_BASE,
         "line_stretch": config.LINE_STRETCH,
         "header_body_sep": config.HEADER_BODY_SEP_BASE,
         "first_module_top_sep": config.FIRST_MODULE_TOP_SEP_BASE,
@@ -293,6 +353,7 @@ def profile_to_spacing(profile):
     return {
         "module_sep": format_mm(profile["module_sep"]),
         "item_sep": format_mm(profile["item_sep"]),
+        "project_sep": format_mm(profile["project_sep"]),
         "line_stretch": f"{profile['line_stretch']:g}",
         "header_body_sep": format_mm(profile["header_body_sep"]),
         "first_module_top_sep": format_mm(profile["first_module_top_sep"]),

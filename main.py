@@ -21,10 +21,6 @@ def clean_up_junk_files(base_name="output_resume"):
             except Exception:
                 pass
 
-    for temp_img in ["processed_avatar.jpg", "processed_logo.png"]:
-        if os.path.exists(temp_img):
-            os.remove(temp_img)
-
 def build_resume(md_file="resume_config.md", output_name="output_resume"):
     tex_file = f"{output_name}.tex"
     
