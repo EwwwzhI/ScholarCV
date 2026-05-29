@@ -10,7 +10,7 @@ ScholarCV 是一个面向中文学术简历的自动排版工具。项目使用 
 - 支持中文等效字符宽度估算，减少中英文混排导致的换行误差。
 - 支持标题颜色、正文颜色、分割线颜色配置。
 - 支持模块标题左侧 PNG 图标；图标缺失时自动回退为纯文字标题。
-- 同一模块内多个三级标题项目会自动插入虚线分隔，列表入口间距与列表项间距保持同步。
+- 同一模块内多个三级标题项目支持按标题前置指令自定义间隔，默认使用 1mm 无视觉分隔。
 
 ## 环境要求
 
@@ -84,6 +84,20 @@ $env:PYTHONIOENCODING='utf-8'; python main.py
 
 一段标题会占满正文宽度并自然换行。三段标题保持左列、中列、右列排版；当左侧标题超过单行左栏宽度时，渲染器会自动让左侧标题先独占一行，并在下一行左列继续显示标题剩余部分；中间信息、右侧信息仍保持原来的中列和右列排版。四段标题会把三段标题中的左列拆成两列，第二段居中显示，第三段和第四段仍沿用原中列、右列位置。
 
+同一二级模块内，非首个三级标题可以在标题前设置和上一个项目之间的间隔模式：
+
+```md
+### 第一个项目
+
+<!-- project-sep: dashed -->
+### 第二个项目
+
+<!-- project-sep: space -->
+### 第三个项目
+```
+
+支持 `none`、`dashed`、`space` 三种模式。默认 `none`，不加虚线，仅保留 `1mm` 基础项目间距；`dashed` 使用虚线分隔；`space` 只额外增加 `2mm` 空距。指令只能写在某个二级模块内的非首个三级标题前，只作用于紧随其后的一个三级标题。
+
 ## 配置说明
 
 ### 排版配置
@@ -97,7 +111,9 @@ $env:PYTHONIOENCODING='utf-8'; python main.py
 - `LOGO_HEIGHT_MM`：校徽显示高度
 - `ITEMIZE_INDENT_MM`：列表整体左缩进，渲染端 `leftmargin` 与高度估算端行宽同步
 - `ITEMIZE_TOPSEP_MM`：列表环境自身上下间距，当前默认 `0`；标题到列表的入口间距跟随动态 `item_sep`
-- `PROJECT_SEP_BASE` / `PROJECT_SEPARATOR_AFTER_SEP_MM`：同一模块内多个三级标题项目之间的虚线前后额外间距，当前默认不额外叠加；为 `0` 时不会输出多余的 `\vspace{0mm}`
+- `PROJECT_SEP_BASE` / `PROJECT_SEPARATOR_AFTER_SEP_MM`：`project-sep: dashed` 虚线前后额外间距，当前默认不额外叠加；为 `0` 时不会输出多余的 `\vspace{0mm}`
+- `PROJECT_SEPARATOR_NONE_MM`：默认 `project-sep: none` 模式的基础项目间距，默认 `1mm`
+- `PROJECT_SEPARATOR_SPACE_MM`：`project-sep: space` 模式的额外项目间距，默认 `2mm`
 - `LAYOUT_TARGET_MIN_RATIO` / `LAYOUT_TARGET_MAX_RATIO`：连续排版求解的目标高度区间
 - `LAYOUT_SAFETY_MARGIN_MM`：连续求解时预留的页面硬安全冗余
 

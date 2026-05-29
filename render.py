@@ -38,6 +38,8 @@ class RenderConfig:
     PROJECT_SEPARATOR_DASH_WIDTH = f"{LayoutConfig.PROJECT_SEPARATOR_DASH_WIDTH_MM:g}mm"
     PROJECT_SEPARATOR_DASH_GAP = f"{LayoutConfig.PROJECT_SEPARATOR_DASH_GAP_MM:g}mm"
     PROJECT_SEPARATOR_THICKNESS = f"{LayoutConfig.PROJECT_SEPARATOR_THICKNESS_PT:g}pt"
+    PROJECT_SEPARATOR_NONE = f"{LayoutConfig.PROJECT_SEPARATOR_NONE_MM:g}mm"
+    PROJECT_SEPARATOR_SPACE = f"{LayoutConfig.PROJECT_SEPARATOR_SPACE_MM:g}mm"
     ITEMIZE_LEFT_MARGIN = f"{LayoutConfig.ITEMIZE_INDENT_MM:g}mm"
     ITEMIZE_TOPSEP = f"{LayoutConfig.ITEMIZE_TOPSEP_MM:g}mm"
     SECTION_ICON_SIZE = StyleConfig.SECTION_ICON_SIZE
@@ -335,6 +337,16 @@ class LatexRenderer:
             f"{after_vspace}"
         )
 
+    def _render_project_gap(self, mode):
+        """按三级标题前置指令渲染项目之间的间隔。"""
+        if mode == "none":
+            return f"\\vspace{{{RenderConfig.PROJECT_SEPARATOR_NONE}}}\n"
+        if mode == "dashed":
+            return self._render_project_separator()
+        if mode == "space":
+            return f"\\vspace{{{RenderConfig.PROJECT_SEPARATOR_SPACE}}}\n"
+        raise ValueError(f"未知项目间隔模式：{mode}")
+
     def _render_title_with_icon(self, title):
         """渲染带可选 PNG 图标的标题内容。"""
         safe_title = self._escape_latex(title)
@@ -427,7 +439,9 @@ class LatexRenderer:
             for item in items:
                 if isinstance(item, dict):
                     if subtitle_count > 0:
-                        body_tex += self._render_project_separator()
+                        body_tex += self._render_project_gap(
+                            item.get("project_sep_mode", "none")
+                        )
 
                     blocks = item["blocks"]
                     body_tex += self._render_subtitle(blocks)

@@ -45,8 +45,8 @@ class LayoutConfig:
     A4_WIDTH = 210.0
 
     # 严格对应 LaTeX 模板中的 \geometry 设置
-    MARGIN_TOP = 2.0
-    MARGIN_BOTTOM = 8.0
+    MARGIN_TOP = 0.0
+    MARGIN_BOTTOM = 2.0
     MARGIN_LEFT = 12.0
     MARGIN_RIGHT = 12.0
     BALANCE_VERTICAL_WHITESPACE = True
@@ -88,9 +88,9 @@ class LayoutConfig:
     # ==========================================
     # 头部基本信息区：左侧校徽 + 基本信息，右侧证件照
     # LaTeX minipage 会被更高的一侧撑开，因此按证件照/左侧内容最大值估算
-    LOGO_HEIGHT_MM = 14.0
-    AVATAR_WIDTH_MM = 33.0
-    AVATAR_HEIGHT_MM = 44.0
+    LOGO_HEIGHT_MM = 18.0
+    AVATAR_WIDTH_MM = 34.0
+    AVATAR_HEIGHT_MM = 46.0
     LOGO_INFO_SEP_BASE = 0.0
 
     # 基本信息标题区：标题行高度取文字与图标中的较大值，再加标题后距和分割线
@@ -229,6 +229,8 @@ class LayoutConfig:
     PROJECT_SEPARATOR_DASH_GAP_MM = 1.4
     PROJECT_SEPARATOR_THICKNESS_PT = 0.35
     PROJECT_SEPARATOR_ESTIMATED_HEIGHT_MM = 0.7
+    PROJECT_SEPARATOR_NONE_MM = 1.0
+    PROJECT_SEPARATOR_SPACE_MM = 2.0
     ITEMIZE_INDENT_MM = 7.0
     ITEMIZE_TOPSEP_MM = 0.0
 

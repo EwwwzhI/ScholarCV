@@ -1,4 +1,10 @@
 import os
+import re
+
+PROJECT_SEP_DIRECTIVE_RE = re.compile(
+    r"<!--\s*project-sep\s*:\s*([A-Za-z]+)\s*-->"
+)
+PROJECT_SEP_MODES = {"none", "dashed", "space"}
 
 def parse_resume_md(file_path):
     """
@@ -78,16 +84,62 @@ def parse_resume_md(file_path):
     # --- 2. 状态机解析 Markdown 正文 ---
     current_section = None
     current_deep_item = None
+    current_section_subtitle_count = 0
+    pending_project_sep_mode = None
 
     for line in lines[yaml_end+1 :]:
         line = line.strip()
         if not line:
             continue
+
+        if "project-sep" in line:
+            match = PROJECT_SEP_DIRECTIVE_RE.fullmatch(line)
+            if not match:
+                raise ValueError(
+                    f"\n❌ [排版阻断] 项目间隔指令错误：\n"
+                    f"请使用 '<!-- project-sep: none -->'、"
+                    f"'<!-- project-sep: dashed -->' 或 '<!-- project-sep: space -->'。\n"
+                    f"-> 你的输入是: {line}"
+                )
+            if current_section is None:
+                raise ValueError(
+                    f"\n❌ [排版阻断] 项目间隔指令位置错误：\n"
+                    f"'{line}' 必须写在某个二级模块内的非首个三级标题前。"
+                )
+            if current_section_subtitle_count == 0:
+                raise ValueError(
+                    f"\n❌ [排版阻断] 项目间隔指令位置错误：\n"
+                    f"在【{current_section}】模块中，项目间隔指令只能写在非首个三级标题前。"
+                )
+            if pending_project_sep_mode is not None:
+                raise ValueError(
+                    f"\n❌ [排版阻断] 项目间隔指令重复：\n"
+                    f"上一条项目间隔指令尚未作用到三级标题，请删除重复指令。"
+                )
+
+            mode = match.group(1).lower()
+            if mode not in PROJECT_SEP_MODES:
+                raise ValueError(
+                    f"\n❌ [排版阻断] 项目间隔模式错误：\n"
+                    f"支持的模式为 none、dashed、space。\n"
+                    f"-> 你的输入是: {line}"
+                )
+            pending_project_sep_mode = mode
+            current_deep_item = None
+            continue
+
+        if pending_project_sep_mode is not None and not line.startswith('### '):
+            raise ValueError(
+                f"\n❌ [排版阻断] 项目间隔指令未绑定三级标题：\n"
+                f"项目间隔指令后只能接空行或 '### ' 三级标题。\n"
+                f"-> 实际遇到: {line}"
+            )
             
         if line.startswith('## '):
             current_section = line[3:].strip()
             resume_data["sections"][current_section] = []
             current_deep_item = None 
+            current_section_subtitle_count = 0
             continue
 
         if not current_section:
@@ -106,8 +158,14 @@ def parse_resume_md(file_path):
                     f"请检查英文 '|' 符号数量是否正确。"
                 )
             
-            current_deep_item = {"blocks": parts, "details": []}
+            current_deep_item = {
+                "blocks": parts,
+                "details": [],
+                "project_sep_mode": pending_project_sep_mode or "none",
+            }
             resume_data["sections"][current_section].append(current_deep_item)
+            pending_project_sep_mode = None
+            current_section_subtitle_count += 1
             continue
 
         if line.startswith('- ') or line.startswith('* '):
@@ -116,6 +174,12 @@ def parse_resume_md(file_path):
                 current_deep_item["details"].append(text)
             else:
                 resume_data["sections"][current_section].append(text)
+
+    if pending_project_sep_mode is not None:
+        raise ValueError(
+            "\n❌ [排版阻断] 项目间隔指令未绑定三级标题：\n"
+            "文件结束前没有找到紧随其后的 '### ' 三级标题。"
+        )
 
     return resume_data
 

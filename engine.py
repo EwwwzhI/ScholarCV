@@ -113,6 +113,16 @@ def project_separator_height_mm(project_sep, config=LayoutConfig):
         + config.PROJECT_SEPARATOR_ESTIMATED_HEIGHT_MM
     )
 
+def project_gap_height_mm(mode, project_sep, config=LayoutConfig):
+    """按三级标题前置指令估算项目之间的间隔高度。"""
+    if mode == "none":
+        return config.PROJECT_SEPARATOR_NONE_MM
+    if mode == "dashed":
+        return project_separator_height_mm(project_sep, config)
+    if mode == "space":
+        return config.PROJECT_SEPARATOR_SPACE_MM
+    raise ValueError(f"未知项目间隔模式：{mode}")
+
 def get_safe_layout_space(config=LayoutConfig):
     """返回连续求解时允许使用的保守安全高度。"""
     ratio_safe_space = config.VALID_HEIGHT * config.LAYOUT_SAFETY_RATIO
@@ -166,7 +176,11 @@ def estimate_block_height(
         # 如果是深度结构（带 ### 的字典）
         if isinstance(item, dict):
             if subtitle_count > 0:
-                total_height += project_separator_height_mm(project_sep, config)
+                total_height += project_gap_height_mm(
+                    item.get("project_sep_mode", "none"),
+                    project_sep,
+                    config,
+                )
 
             # 1. 加上三级子标题的高度
             total_height += estimate_subtitle_height(item["blocks"], config, line_stretch)
