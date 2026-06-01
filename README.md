@@ -5,7 +5,7 @@ ScholarCV 是一个面向中文学术简历的自动排版工具。项目使用 
 ## 功能特点
 
 - 使用 `resume_config.md` 管理基础信息、教育背景、科研经历、竞赛经历、项目经历等内容。
-- 自动处理证件照和校徽：证件照按目标比例裁切，校徽自动去白边并控制分辨率。
+- 支持 `classic` 和 `centered` 两种头部模板；`classic` 自动处理证件照和校徽。
 - 自动估算 A4 页面高度，并连续求解行距与模块间距，让内容落在目标饱满区间。
 - 支持中文等效字符宽度估算，减少中英文混排导致的换行误差。
 - 支持标题颜色、正文颜色、分割线颜色配置。
@@ -33,7 +33,7 @@ xelatex --version
 ## 快速开始
 
 1. 编辑 `resume_config.md`。
-2. 将证件照、校徽放在项目根目录，并在 `resume_config.md` 中填写文件名。
+2. 使用默认 `classic` 头部模板时，将证件照、校徽放在项目根目录，并在 `resume_config.md` 中填写文件名。
 3. 运行：
 
 ```powershell
@@ -52,6 +52,7 @@ $env:PYTHONIOENCODING='utf-8'; python main.py
 
 ```md
 ---
+头部模板: classic
 姓名: 张三
 联系电话: 13800000000
 电子邮箱: name@example.com
@@ -61,7 +62,22 @@ $env:PYTHONIOENCODING='utf-8'; python main.py
 ---
 ```
 
-头部除 `姓名`、`联系电话`、`电子邮箱`、`证件照`、`校徽` 外，最多可以额外填写 1 个自定义选填字段；字段名不限定为固定候选项。
+`头部模板` 可省略，默认使用 `classic`。`classic` 保持当前图文头部，必须填写 `证件照` 和 `校徽`，且除 `姓名`、`联系电话`、`电子邮箱`、`证件照`、`校徽`、`头部模板` 外最多填写 1 个自定义选填字段。
+
+纯文字居中头部使用 `centered`，不需要证件照和校徽：
+
+```md
+---
+头部模板: centered
+姓名: HIJIANGTAO
+联系电话: (+86) 123-4567-8910
+电子邮箱: hi@hijiangtao.com
+个人主页: https://hijiangtao.github.io/
+GitHub: https://github.com/hijiangtao
+---
+```
+
+`centered` 最多显示 4 个联系方式，按顺序读取这些非空字段：`电子邮箱`、`联系电话`、`个人主页`、`GitHub`。`GitHub主页` 会作为 `GitHub` 的兼容别名，但推荐新配置使用 `GitHub`。其它头部字段不会自动显示在联系方式行。
 
 正文模块使用二级标题：
 
@@ -107,8 +123,11 @@ $env:PYTHONIOENCODING='utf-8'; python main.py
 建议日常只调整这些参数：
 
 - `MARGIN_TOP` / `MARGIN_BOTTOM`：页面上下边距
+- `BALANCE_VERTICAL_WHITESPACE`：是否用弹性空白平衡页面上下剩余空间
+- `BALANCE_VERTICAL_TOP_WEIGHT` / `BALANCE_VERTICAL_BOTTOM_WEIGHT`：弹性空白的顶部/底部分配权重，默认 `0.4 / 0.6`
 - `AVATAR_WIDTH_MM` / `AVATAR_HEIGHT_MM`：证件照显示尺寸
 - `LOGO_HEIGHT_MM`：校徽显示高度
+- `CENTERED_HEADER_TOP_SEP_MM`：`centered` 头部上方额外留白，默认 `0mm`
 - `ITEMIZE_INDENT_MM`：列表整体左缩进，渲染端 `leftmargin` 与高度估算端行宽同步
 - `ITEMIZE_TOPSEP_MM`：列表环境自身上下间距，当前默认 `0`；标题到列表的入口间距跟随动态 `item_sep`
 - `PROJECT_SEP_BASE` / `PROJECT_SEPARATOR_AFTER_SEP_MM`：`project-sep: dashed` 虚线前后额外间距，当前默认不额外叠加；为 `0` 时不会输出多余的 `\vspace{0mm}`

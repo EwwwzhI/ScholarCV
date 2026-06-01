@@ -12,6 +12,50 @@ def calculate_text_lines(text, width_mm=None, config=LayoutConfig):
         width_mm = config.VALID_WIDTH
     return TYPOGRAPHY.estimate_lines(text, width_mm, markdown_bold=True)
 
+def centered_contact_text(header):
+    """返回 centered 头部用于高度估算的联系方式文本。"""
+    contact_fields = (
+        ("电子邮箱",),
+        ("联系电话",),
+        ("个人主页",),
+        ("GitHub", "GitHub主页"),
+    )
+    parts = []
+    for aliases in contact_fields:
+        for key in aliases:
+            if header.get(key):
+                parts.append(str(header[key]))
+                break
+    return " · ".join(parts)
+
+def estimate_header_height(header, config=LayoutConfig, line_stretch=None):
+    """按头部模板估算头部区域高度。"""
+    template = header.get("头部模板", "classic")
+    if template == "centered":
+        name_lines = TYPOGRAPHY.estimate_lines(
+            f"**{header.get('姓名', '')}**",
+            config.VALID_WIDTH,
+            markdown_bold=True,
+        )
+        contact = centered_contact_text(header)
+        contact_lines = (
+            TYPOGRAPHY.estimate_lines(contact, config.VALID_WIDTH, markdown_bold=False)
+            if contact
+            else 0
+        )
+        return (
+            config.CENTERED_HEADER_TOP_SEP_MM
+            + name_lines * config.CENTERED_HEADER_NAME_LINE_HEIGHT_MM
+            + config.CENTERED_HEADER_NAME_CONTACT_GAP_MM
+            + max(1, contact_lines) * config.CENTERED_HEADER_CONTACT_LINE_HEIGHT_MM
+        )
+
+    return (
+        config.header_height_mm(line_stretch)
+        if hasattr(config, "header_height_mm")
+        else config.HEADER_HEIGHT
+    )
+
 def should_wrap_subtitle_first_block(text, config=LayoutConfig):
     """判断三级标题第一段是否超出固定左列安全宽度。"""
     return (
@@ -222,10 +266,10 @@ def estimate_resume_total_height(parsed_data, config=LayoutConfig, profile=None)
         }
 
     # 头部区域按实际模板尺寸估算，再接一个很小的正文起始间距
-    header_height = (
-        config.header_height_mm(profile["line_stretch"])
-        if hasattr(config, "header_height_mm")
-        else config.HEADER_HEIGHT
+    header_height = estimate_header_height(
+        parsed_data["header"],
+        config,
+        profile["line_stretch"],
     )
     total_mm = header_height + profile["header_body_sep"]
     

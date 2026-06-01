@@ -34,13 +34,16 @@ def build_resume(md_file="resume_config.md", output_name="output_resume"):
 
     print("\n✂️ [Step 2/5] 正在进行图像资产清洗与自动裁切...")
     header = resume_data["header"]
-    try:
-        header["证件照"] = ImageProcessor.process_avatar(header.get("证件照", ""))
-        header["校徽"] = ImageProcessor.process_logo(header.get("校徽", ""))
-        print("✅ 证件照(2.6x3.6)与校徽(去边透明)规范化完成。")
-    except Exception as e:
-        print(f"\n🚨 图像预处理失败：{e}")
-        return
+    if header.get("头部模板", "classic") == "classic":
+        try:
+            header["证件照"] = ImageProcessor.process_avatar(header.get("证件照", ""))
+            header["校徽"] = ImageProcessor.process_logo(header.get("校徽", ""))
+            print("✅ 证件照(2.6x3.6)与校徽(去边透明)规范化完成。")
+        except Exception as e:
+            print(f"\n🚨 图像预处理失败：{e}")
+            return
+    else:
+        print("✅ centered 头部模板无需图片预处理，已跳过。")
 
     print("\n⚖️ [Step 3/5] 启动物理空间预推演...")
     try:

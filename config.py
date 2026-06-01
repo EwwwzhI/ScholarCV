@@ -46,10 +46,14 @@ class LayoutConfig:
 
     # 严格对应 LaTeX 模板中的 \geometry 设置
     MARGIN_TOP = 0.0
-    MARGIN_BOTTOM = 2.0
+    MARGIN_BOTTOM = 4.0
     MARGIN_LEFT = 12.0
     MARGIN_RIGHT = 12.0
+    # 内容未填满安全高度时，用弹性空白平衡页面上下留白。
     BALANCE_VERTICAL_WHITESPACE = True
+    # 弹性空白分配权重；当前设置会把更多剩余空白留在页底。
+    BALANCE_VERTICAL_TOP_WEIGHT = 0.3
+    BALANCE_VERTICAL_BOTTOM_WEIGHT = 0.7
 
     # [核心指标] 绝对可用排版空间
     VALID_HEIGHT = A4_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM
@@ -151,6 +155,12 @@ class LayoutConfig:
     HEADER_RIGHT_PADDING_SHORT_LEFT_MM = 20.0
     HEADER_RIGHT_PADDING_MEDIUM_LEFT_MM = 12.0
     HEADER_RIGHT_PADDING_LONG_LEFT_MM = 2.0
+    # centered 纯文字头部的固定上方留白；默认不额外增加。
+    CENTERED_HEADER_TOP_SEP_MM = 0.0
+    # centered 头部高度估算参数：姓名行、姓名到联系方式、联系方式行。
+    CENTERED_HEADER_NAME_LINE_HEIGHT_MM = 9.0
+    CENTERED_HEADER_NAME_CONTACT_GAP_MM = 2.0
+    CENTERED_HEADER_CONTACT_LINE_HEIGHT_MM = 5.0
 
     # 一级大模块标题高度：标题行取文字与图标中的较大值，再加 2pt 后距和分割线
     SECTION_TITLE_AFTER_SEP_MM = 2.0 * PT_TO_MM

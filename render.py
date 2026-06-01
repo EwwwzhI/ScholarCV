@@ -42,10 +42,16 @@ class RenderConfig:
     PROJECT_SEPARATOR_SPACE = f"{LayoutConfig.PROJECT_SEPARATOR_SPACE_MM:g}mm"
     ITEMIZE_LEFT_MARGIN = f"{LayoutConfig.ITEMIZE_INDENT_MM:g}mm"
     ITEMIZE_TOPSEP = f"{LayoutConfig.ITEMIZE_TOPSEP_MM:g}mm"
+    CENTERED_HEADER_TOP_SEP = f"{LayoutConfig.CENTERED_HEADER_TOP_SEP_MM:g}mm"
     SECTION_ICON_SIZE = StyleConfig.SECTION_ICON_SIZE
     SECTION_ICON_TEXT_GAP = StyleConfig.SECTION_ICON_TEXT_GAP
-    PAGE_BALANCE_GLUE = (
-        r"\vspace*{\fill}"
+    PAGE_TOP_BALANCE_GLUE = (
+        rf"\vspace*{{\stretch{{{LayoutConfig.BALANCE_VERTICAL_TOP_WEIGHT:g}}}}}"
+        if getattr(LayoutConfig, "BALANCE_VERTICAL_WHITESPACE", False)
+        else ""
+    )
+    PAGE_BOTTOM_BALANCE_GLUE = (
+        rf"\vspace*{{\stretch{{{LayoutConfig.BALANCE_VERTICAL_BOTTOM_WEIGHT:g}}}}}"
         if getattr(LayoutConfig, "BALANCE_VERTICAL_WHITESPACE", False)
         else ""
     )
@@ -102,51 +108,9 @@ BASE_TEX_TEMPLATE = r"""
 [[PAGE_TOP_BALANCE_GLUE]]
 
 % ==========================================
-% 头部基本信息区
+% 动态头部信息区
 % ==========================================
-\noindent
-\begin{minipage}[b]{0.74\textwidth}
-    % 1. 左上角：注入配置区定义的校徽高度
-    \noindent\includegraphics[height=[[LOGO_HEIGHT]]]{[[LOGO_PATH]]} \\[[[LOGO_INFO_SEP]]]
-    
-    {\Large\textcolor{cvTitle}{\textbf{[[BASIC_INFO_TITLE]]}}} \vspace{4pt}
-    {\color{cvRule}\hrule height 0.8pt}
-    \vspace{[[BASIC_INFO_TABLE_GAP]]}
-    
-    {
-    \renewcommand{\arraystretch}{1.5}
-    \setlength{\tabcolsep}{0pt}
-    \settowidth{\headerrightvaluewidth}{[[PHONE]]}
-    \settowidth{\headerrighttempwidth}{[[EMAIL]]}
-    \ifdim\headerrighttempwidth>\headerrightvaluewidth
-        \setlength{\headerrightvaluewidth}{\headerrighttempwidth}
-    \fi
-    \settowidth{\headerleftinfowidth}{[[NAME_LABEL]]：[[NAME]]}
-    \settowidth{\headerlefttempwidth}{[[OPTIONAL_KEY]]：[[OPTIONAL_VALUE]]}
-    \ifdim\headerlefttempwidth>\headerleftinfowidth
-        \setlength{\headerleftinfowidth}{\headerlefttempwidth}
-    \fi
-    \ifdim\headerleftinfowidth<[[HEADER_LEFT_SHORT_MAX]]
-        \setlength{\headerrightpadding}{[[HEADER_RIGHT_PADDING_SHORT_LEFT]]}
-    \else
-        \ifdim\headerleftinfowidth<[[HEADER_LEFT_MEDIUM_MAX]]
-            \setlength{\headerrightpadding}{[[HEADER_RIGHT_PADDING_MEDIUM_LEFT]]}
-        \else
-            \setlength{\headerrightpadding}{[[HEADER_RIGHT_PADDING_LONG_LEFT]]}
-        \fi
-    \fi
-    \begin{tabularx}{\linewidth}{@{} l @{\hspace{0.6mm}：\hspace{1.2mm}} l X r @{\hspace{0.6mm}：\hspace{1.2mm}} L{\headerrightvaluewidth} @{\hspace{\headerrightpadding}}}
-        [[NAME_LABEL]] & [[NAME]] & & 联系电话 & [[PHONE]] \\
-        [[OPTIONAL_KEY]] & [[OPTIONAL_VALUE]] & & 电子邮箱 & [[EMAIL]] \\
-    \end{tabularx}
-    }
-\end{minipage}
-\hfill
-\begin{minipage}[b]{0.22\textwidth}
-    \raggedleft 
-    % 2. 右侧证件照：注入配置区定义的宽高
-    \includegraphics[width=[[AVATAR_WIDTH]], height=[[AVATAR_HEIGHT]]]{[[AVATAR_PATH]]}
-\end{minipage}
+[[HEADER_CONTENT]]
 
 \vspace{[[HEADER_BODY_SEP]]}
 
@@ -369,53 +333,151 @@ class LatexRenderer:
 
         return safe_title
 
-    def _render_header(self):
-        """渲染头部信息，自适应列宽并对齐冒号。"""
+    def _header_template(self):
+        """返回当前头部模板 ID。"""
+        return self.data["header"].get("头部模板", "classic")
+
+    def _render_classic_header(self):
+        """渲染现有图文头部信息，自适应列宽并对齐冒号。"""
         header = self.data["header"]
-        
-        # 1. 注入图片尺寸参数
-        self.tex_code = self.tex_code.replace("[[BASIC_INFO_TITLE]]", self._render_title_with_icon("基本信息"))
-        self.tex_code = self.tex_code.replace("[[LOGO_HEIGHT]]", RenderConfig.LOGO_HEIGHT)
-        self.tex_code = self.tex_code.replace("[[LOGO_INFO_SEP]]", RenderConfig.LOGO_INFO_SEP)
-        self.tex_code = self.tex_code.replace("[[BASIC_INFO_TABLE_GAP]]", RenderConfig.BASIC_INFO_TABLE_GAP)
-        self.tex_code = self.tex_code.replace("[[AVATAR_WIDTH]]", RenderConfig.AVATAR_WIDTH)
-        self.tex_code = self.tex_code.replace("[[AVATAR_HEIGHT]]", RenderConfig.AVATAR_HEIGHT)
-        self.tex_code = self.tex_code.replace("[[HEADER_LEFT_SHORT_MAX]]", RenderConfig.HEADER_LEFT_SHORT_MAX)
-        self.tex_code = self.tex_code.replace("[[HEADER_LEFT_MEDIUM_MAX]]", RenderConfig.HEADER_LEFT_MEDIUM_MAX)
-        self.tex_code = self.tex_code.replace("[[HEADER_RIGHT_PADDING_SHORT_LEFT]]", RenderConfig.HEADER_RIGHT_PADDING_SHORT_LEFT)
-        self.tex_code = self.tex_code.replace("[[HEADER_RIGHT_PADDING_MEDIUM_LEFT]]", RenderConfig.HEADER_RIGHT_PADDING_MEDIUM_LEFT)
-        self.tex_code = self.tex_code.replace("[[HEADER_RIGHT_PADDING_LONG_LEFT]]", RenderConfig.HEADER_RIGHT_PADDING_LONG_LEFT)
+        header_tex = r"""
+\noindent
+\begin{minipage}[b]{0.74\textwidth}
+    \noindent\includegraphics[height=[[LOGO_HEIGHT]]]{[[LOGO_PATH]]} \\[[[LOGO_INFO_SEP]]]
+    
+    {\Large\textcolor{cvTitle}{\textbf{[[BASIC_INFO_TITLE]]}}} \vspace{4pt}
+    {\color{cvRule}\hrule height 0.8pt}
+    \vspace{[[BASIC_INFO_TABLE_GAP]]}
+    
+    {
+    \renewcommand{\arraystretch}{1.5}
+    \setlength{\tabcolsep}{0pt}
+    \settowidth{\headerrightvaluewidth}{[[PHONE]]}
+    \settowidth{\headerrighttempwidth}{[[EMAIL]]}
+    \ifdim\headerrighttempwidth>\headerrightvaluewidth
+        \setlength{\headerrightvaluewidth}{\headerrighttempwidth}
+    \fi
+    \settowidth{\headerleftinfowidth}{[[NAME_LABEL]]：[[NAME]]}
+    \settowidth{\headerlefttempwidth}{[[OPTIONAL_KEY]]：[[OPTIONAL_VALUE]]}
+    \ifdim\headerlefttempwidth>\headerleftinfowidth
+        \setlength{\headerleftinfowidth}{\headerlefttempwidth}
+    \fi
+    \ifdim\headerleftinfowidth<[[HEADER_LEFT_SHORT_MAX]]
+        \setlength{\headerrightpadding}{[[HEADER_RIGHT_PADDING_SHORT_LEFT]]}
+    \else
+        \ifdim\headerleftinfowidth<[[HEADER_LEFT_MEDIUM_MAX]]
+            \setlength{\headerrightpadding}{[[HEADER_RIGHT_PADDING_MEDIUM_LEFT]]}
+        \else
+            \setlength{\headerrightpadding}{[[HEADER_RIGHT_PADDING_LONG_LEFT]]}
+        \fi
+    \fi
+    \begin{tabularx}{\linewidth}{@{} l @{\hspace{0.6mm}：\hspace{1.2mm}} l X r @{\hspace{0.6mm}：\hspace{1.2mm}} L{\headerrightvaluewidth} @{\hspace{\headerrightpadding}}}
+        [[NAME_LABEL]] & [[NAME]] & & 联系电话 & [[PHONE]] \\
+        [[OPTIONAL_KEY]] & [[OPTIONAL_VALUE]] & & 电子邮箱 & [[EMAIL]] \\
+    \end{tabularx}
+    }
+\end{minipage}
+\hfill
+\begin{minipage}[b]{0.22\textwidth}
+    \raggedleft
+    \includegraphics[width=[[AVATAR_WIDTH]], height=[[AVATAR_HEIGHT]]]{[[AVATAR_PATH]]}
+\end{minipage}
+"""
 
-        # 2. 注入基本必填信息
-        self.tex_code = self.tex_code.replace("[[NAME]]", self._escape_latex(header.get("姓名", "")))
-        self.tex_code = self.tex_code.replace("[[PHONE]]", self._escape_latex(header.get("联系电话", "")))
-        self.tex_code = self.tex_code.replace("[[EMAIL]]", self._escape_latex(header.get("电子邮箱", "")))
-        
-        self.tex_code = self.tex_code.replace("[[LOGO_PATH]]", header.get("校徽", "").replace("\\", "/"))
-        self.tex_code = self.tex_code.replace("[[AVATAR_PATH]]", header.get("证件照", "").replace("\\", "/"))
+        replacements = {
+            "[[BASIC_INFO_TITLE]]": self._render_title_with_icon("基本信息"),
+            "[[LOGO_HEIGHT]]": RenderConfig.LOGO_HEIGHT,
+            "[[LOGO_INFO_SEP]]": RenderConfig.LOGO_INFO_SEP,
+            "[[BASIC_INFO_TABLE_GAP]]": RenderConfig.BASIC_INFO_TABLE_GAP,
+            "[[AVATAR_WIDTH]]": RenderConfig.AVATAR_WIDTH,
+            "[[AVATAR_HEIGHT]]": RenderConfig.AVATAR_HEIGHT,
+            "[[HEADER_LEFT_SHORT_MAX]]": RenderConfig.HEADER_LEFT_SHORT_MAX,
+            "[[HEADER_LEFT_MEDIUM_MAX]]": RenderConfig.HEADER_LEFT_MEDIUM_MAX,
+            "[[HEADER_RIGHT_PADDING_SHORT_LEFT]]": RenderConfig.HEADER_RIGHT_PADDING_SHORT_LEFT,
+            "[[HEADER_RIGHT_PADDING_MEDIUM_LEFT]]": RenderConfig.HEADER_RIGHT_PADDING_MEDIUM_LEFT,
+            "[[HEADER_RIGHT_PADDING_LONG_LEFT]]": RenderConfig.HEADER_RIGHT_PADDING_LONG_LEFT,
+            "[[NAME]]": self._escape_latex(header.get("姓名", "")),
+            "[[PHONE]]": self._escape_latex(header.get("联系电话", "")),
+            "[[EMAIL]]": self._escape_latex(header.get("电子邮箱", "")),
+            "[[LOGO_PATH]]": header.get("校徽", "").replace("\\", "/"),
+            "[[AVATAR_PATH]]": header.get("证件照", "").replace("\\", "/"),
+        }
+        for placeholder, value in replacements.items():
+            header_tex = header_tex.replace(placeholder, value)
 
-        # 3. 处理自定义选填项及拉伸对齐逻辑
-        required_keys = {"姓名", "联系电话", "电子邮箱", "证件照", "校徽"}
+        required_keys = {"姓名", "联系电话", "电子邮箱", "证件照", "校徽", "头部模板"}
         optional_keys = [key for key in header.keys() if key not in required_keys]
-        
+
         if optional_keys:
             opt_key = optional_keys[0]
             opt_value = header[opt_key]
-            self.tex_code = self.tex_code.replace("[[OPTIONAL_KEY]]", self._escape_latex(opt_key))
-            self.tex_code = self.tex_code.replace("[[OPTIONAL_VALUE]]", self._escape_latex(opt_value))
-            
-            # 🎯 核心拉伸对齐逻辑：利用 \hfill 让 LaTeX 底层自动撑满宽度
+            header_tex = header_tex.replace("[[OPTIONAL_KEY]]", self._escape_latex(opt_key))
+            header_tex = header_tex.replace("[[OPTIONAL_VALUE]]", self._escape_latex(opt_value))
+
             safe_key = self._escape_latex(opt_key)
             if len(opt_key) > 2:
-                # 注入带有 \hfill 弹簧的 \makebox，实现分散对齐
                 name_label = f"\\makebox[\\widthof{{{safe_key}}}][s]{{姓\\hfill 名}}"
             else:
                 name_label = "姓名"
-                
-            self.tex_code = self.tex_code.replace("[[NAME_LABEL]]", name_label)
+
+            header_tex = header_tex.replace("[[NAME_LABEL]]", name_label)
         else:
-            self.tex_code = self.tex_code.replace("[[OPTIONAL_KEY]] & [[OPTIONAL_VALUE]]", " & ")
-            self.tex_code = self.tex_code.replace("[[NAME_LABEL]]", "姓名")
+            header_tex = header_tex.replace("[[OPTIONAL_KEY]] & [[OPTIONAL_VALUE]]", " & ")
+            header_tex = header_tex.replace("[[NAME_LABEL]]", "姓名")
+
+        return header_tex
+
+    def _centered_contact_parts(self):
+        """返回 centered 头部允许展示的联系方式字段。"""
+        header = self.data["header"]
+        contact_fields = (
+            ("电子邮箱",),
+            ("联系电话",),
+            ("个人主页",),
+            ("GitHub", "GitHub主页"),
+        )
+        parts = []
+        for aliases in contact_fields:
+            for key in aliases:
+                if header.get(key):
+                    parts.append(self._escape_latex(header[key]))
+                    break
+        return parts
+
+    def _render_centered_header(self):
+        """渲染纯文字居中头部。"""
+        name = self._escape_latex(self.data["header"].get("姓名", ""))
+        contact_parts = self._centered_contact_parts()
+        contact_line = (
+            r"\hspace{1.6mm}$\cdot$\hspace{1.6mm}".join(contact_parts)
+            if contact_parts
+            else ""
+        )
+        top_sep = (
+            f"\\vspace*{{{RenderConfig.CENTERED_HEADER_TOP_SEP}}}\n"
+            if RenderConfig.CENTERED_HEADER_TOP_SEP != "0mm"
+            else ""
+        )
+        return (
+            top_sep
+            +
+            "\\begin{center}\n"
+            f"{{\\fontsize{{20pt}}{{24pt}}\\selectfont\\textcolor{{cvTitle}}{{\\textbf{{{name}}}}}}}\\\\[2mm]\n"
+            f"{{\\normalsize {contact_line}}}\n"
+            "\\end{center}"
+        )
+
+    def _render_header(self):
+        """按配置模板渲染头部。"""
+        template = self._header_template()
+        if template == "classic":
+            header_tex = self._render_classic_header()
+        elif template == "centered":
+            header_tex = self._render_centered_header()
+        else:
+            raise ValueError(f"未知头部模板：{template}")
+
+        self.tex_code = self.tex_code.replace("[[HEADER_CONTENT]]", header_tex)
 
     def _render_sections(self):
         """渲染主体经历模块"""
@@ -481,8 +543,8 @@ class LatexRenderer:
         self.tex_code = self.tex_code.replace("[[MARGIN_BOTTOM]]", RenderConfig.MARGIN_BOTTOM)
         self.tex_code = self.tex_code.replace("[[MARGIN_LEFT]]", RenderConfig.MARGIN_LEFT)
         self.tex_code = self.tex_code.replace("[[MARGIN_RIGHT]]", RenderConfig.MARGIN_RIGHT)
-        self.tex_code = self.tex_code.replace("[[PAGE_TOP_BALANCE_GLUE]]", RenderConfig.PAGE_BALANCE_GLUE)
-        self.tex_code = self.tex_code.replace("[[PAGE_BOTTOM_BALANCE_GLUE]]", RenderConfig.PAGE_BALANCE_GLUE)
+        self.tex_code = self.tex_code.replace("[[PAGE_TOP_BALANCE_GLUE]]", RenderConfig.PAGE_TOP_BALANCE_GLUE)
+        self.tex_code = self.tex_code.replace("[[PAGE_BOTTOM_BALANCE_GLUE]]", RenderConfig.PAGE_BOTTOM_BALANCE_GLUE)
         self.tex_code = self.tex_code.replace("[[LINE_STRETCH]]", self.spacing["line_stretch"])
         self.tex_code = self.tex_code.replace("[[MODULE_SEP]]", self.spacing["module_sep"])
         self.tex_code = self.tex_code.replace("[[SECTION_BODY_SEP]]", RenderConfig.SECTION_BODY_SEP)

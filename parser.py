@@ -5,6 +5,8 @@ PROJECT_SEP_DIRECTIVE_RE = re.compile(
     r"<!--\s*project-sep\s*:\s*([A-Za-z]+)\s*-->"
 )
 PROJECT_SEP_MODES = {"none", "dashed", "space"}
+HEADER_TEMPLATE_KEY = "头部模板"
+HEADER_TEMPLATES = {"classic", "centered"}
 
 def parse_resume_md(file_path):
     """
@@ -44,6 +46,14 @@ def parse_resume_md(file_path):
     # 🚨 核心拦截网：头部数据强校验模块
     # ==========================================
     header = resume_data["header"]
+    header_template = header.get(HEADER_TEMPLATE_KEY, "classic").lower()
+    if header_template not in HEADER_TEMPLATES:
+        raise ValueError(
+            f"\n❌ [排版阻断] 头部模板错误：\n"
+            f"'{HEADER_TEMPLATE_KEY}' 仅支持 classic 或 centered。\n"
+            f"-> 你的输入是: {header.get(HEADER_TEMPLATE_KEY)}"
+        )
+    header[HEADER_TEMPLATE_KEY] = header_template
     
     # 校验项 1：文字必填项不能少
     required_texts = {"姓名", "联系电话", "电子邮箱"}
@@ -55,30 +65,31 @@ def parse_resume_md(file_path):
     required_images = {"证件照", "校徽"}
 
     # 校验项 3：头部选填项可自定义字段名，但模板最多容纳 1 项
-    required_header_keys = required_texts | required_images
-    filled_optionals = [key for key in header.keys() if key not in required_header_keys]
+    if header_template == "classic":
+        required_header_keys = required_texts | required_images | {HEADER_TEMPLATE_KEY}
+        filled_optionals = [key for key in header.keys() if key not in required_header_keys]
 
-    if len(filled_optionals) > 1:
-        raise ValueError(
-            f"\n❌ [排版阻断] 网格选填项超载：\n"
-            f"LaTeX 模板只能容纳 1 项，但你填写了 {filled_optionals}。\n"
-            f"请保留 1 个自定义选填字段，或将多余字段留空/删除！"
-        )
-
-    # 校验项 4：双图路径检查
-    missing_images = required_images - set(header.keys())
-    if missing_images:
-        raise ValueError(f"\n❌ [排版阻断] 图片信息缺失：\n保研学术简历必须包含 {missing_images}！")
-        
-    for img_key in required_images:
-        img_filename = header[img_key]
-        img_path = os.path.join(base_dir, img_filename)
-        if not os.path.exists(img_path):
-            raise FileNotFoundError(
-                f"\n❌ [文件丢失] 找不到 {img_key}：\n"
-                f"你在 md 中填写了 '{img_filename}'，但在同级目录下找不到该图片！\n"
-                f"请检查文件名是否带上了后缀（如 .jpg/.png）或者文件是否放错了位置。"
+        if len(filled_optionals) > 1:
+            raise ValueError(
+                f"\n❌ [排版阻断] 网格选填项超载：\n"
+                f"LaTeX 模板只能容纳 1 项，但你填写了 {filled_optionals}。\n"
+                f"请保留 1 个自定义选填字段，或将多余字段留空/删除！"
             )
+
+        # 校验项 4：双图路径检查
+        missing_images = required_images - set(header.keys())
+        if missing_images:
+            raise ValueError(f"\n❌ [排版阻断] 图片信息缺失：\nclassic 头部模板必须包含 {missing_images}！")
+
+        for img_key in required_images:
+            img_filename = header[img_key]
+            img_path = os.path.join(base_dir, img_filename)
+            if not os.path.exists(img_path):
+                raise FileNotFoundError(
+                    f"\n❌ [文件丢失] 找不到 {img_key}：\n"
+                    f"你在 md 中填写了 '{img_filename}'，但在同级目录下找不到该图片！\n"
+                    f"请检查文件名是否带上了后缀（如 .jpg/.png）或者文件是否放错了位置。"
+                )
     # ==========================================
     
     # --- 2. 状态机解析 Markdown 正文 ---
