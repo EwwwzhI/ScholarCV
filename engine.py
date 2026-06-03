@@ -1,5 +1,7 @@
 import math
-from config import LayoutConfig
+import os
+from config import LayoutConfig, _latex_length_to_mm
+from style_config import StyleConfig
 from typography import TypographyMetrics
 
 TYPOGRAPHY = TypographyMetrics(LayoutConfig.CHAR_WIDTH_MM)
@@ -12,20 +14,83 @@ def calculate_text_lines(text, width_mm=None, config=LayoutConfig):
         width_mm = config.VALID_WIDTH
     return TYPOGRAPHY.estimate_lines(text, width_mm, markdown_bold=True)
 
-def centered_contact_text(header):
-    """返回 centered 头部用于高度估算的联系方式文本。"""
-    contact_fields = (
-        ("电子邮箱",),
-        ("联系电话",),
-        ("个人主页",),
-        ("GitHub", "GitHub主页"),
+def centered_header_style_lookup(attr_name, key, fallback_key=None, default=None):
+    """按实际字段名优先、兼容字段名兜底读取 centered 头部图标配置。"""
+    mapping = getattr(StyleConfig, attr_name, {})
+    if key in mapping:
+        return mapping[key]
+    if fallback_key is not None and fallback_key in mapping:
+        return mapping[fallback_key]
+    return default
+
+def centered_header_icon_enabled(key, fallback_key=None):
+    """判断 centered 头部联系方式字段是否实际渲染图标。"""
+    if not getattr(StyleConfig, "ENABLE_CENTERED_HEADER_ICONS", False):
+        return False
+
+    enabled = centered_header_style_lookup(
+        "CENTERED_HEADER_ICON_ENABLED",
+        key,
+        fallback_key,
+        True,
     )
+    if not enabled:
+        return False
+
+    icon_path = centered_header_style_lookup(
+        "CENTERED_HEADER_ICONS",
+        key,
+        fallback_key,
+        "",
+    )
+    if icon_path and os.path.exists(icon_path):
+        return True
+
+    icon_command = centered_header_style_lookup(
+        "CENTERED_HEADER_ICON_COMMANDS",
+        key,
+        fallback_key,
+        "",
+    )
+    return bool(icon_command)
+
+def centered_header_icon_placeholder():
+    """返回用于宽度估算的图标占位空格。"""
+    icon_width_mm = _latex_length_to_mm(
+        getattr(StyleConfig, "CENTERED_HEADER_ICON_SIZE", "0.28cm")
+    ) + _latex_length_to_mm(
+        getattr(StyleConfig, "CENTERED_HEADER_ICON_TEXT_GAP", "0.06cm")
+    )
+    space_width_mm = TYPOGRAPHY.char_width_mm_for_style(" ")
+    return " " * max(1, math.ceil(icon_width_mm / space_width_mm))
+
+def centered_contact_text(header):
+    """按 Markdown 头部字段顺序返回 centered 头部用于高度估算的联系方式文本。"""
+    contact_field_fallbacks = {
+        "电子邮箱": "电子邮箱",
+        "联系电话": "联系电话",
+        "个人主页": "个人主页",
+        "GitHub": "GitHub",
+        "GitHub主页": "GitHub",
+    }
     parts = []
-    for aliases in contact_fields:
-        for key in aliases:
-            if header.get(key):
-                parts.append(str(header[key]))
-                break
+    rendered_fallbacks = set()
+    for key, value in header.items():
+        fallback_key = contact_field_fallbacks.get(key)
+        if not fallback_key or fallback_key in rendered_fallbacks:
+            continue
+
+        prefix = (
+            centered_header_icon_placeholder()
+            if centered_header_icon_enabled(key, fallback_key)
+            else ""
+        )
+        parts.append(prefix + str(value))
+        rendered_fallbacks.add(fallback_key)
+
+        if len(parts) >= 4:
+            break
+
     return " · ".join(parts)
 
 def estimate_header_height(header, config=LayoutConfig, line_stretch=None):

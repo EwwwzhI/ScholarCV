@@ -10,6 +10,7 @@ ScholarCV 是一个面向中文学术简历的自动排版工具。项目使用 
 - 支持中文等效字符宽度估算，减少中英文混排导致的换行误差。
 - 支持标题颜色、正文颜色、分割线颜色配置。
 - 支持模块标题左侧 PNG 图标；图标缺失时自动回退为纯文字标题。
+- 支持 `centered` 头部联系方式前置图标，可按字段开关并自定义 PNG。
 - 同一模块内多个三级标题项目支持按标题前置指令自定义间隔，默认使用 1mm 无视觉分隔。
 
 ## 环境要求
@@ -77,7 +78,7 @@ GitHub: https://github.com/hijiangtao
 ---
 ```
 
-`centered` 最多显示 4 个联系方式，按顺序读取这些非空字段：`电子邮箱`、`联系电话`、`个人主页`、`GitHub`。`GitHub主页` 会作为 `GitHub` 的兼容别名，但推荐新配置使用 `GitHub`。其它头部字段不会自动显示在联系方式行。
+`centered` 最多显示 4 个联系方式，会按 YAML 头部中的书写顺序读取这些非空字段：`电子邮箱`、`联系电话`、`个人主页`、`GitHub`。`GitHub主页` 会作为 `GitHub` 的兼容别名，但推荐新配置使用 `GitHub`；如果两个字段都填写，只会渲染先出现的一个。其它头部字段不会自动显示在联系方式行。联系方式前可显示图标，默认使用 Font Awesome 图标；也可以在 `style_config.py` 中改为自定义 PNG。
 
 正文模块使用二级标题：
 
@@ -175,6 +176,45 @@ SECTION_ICONS = {
 ```
 
 图标 PNG 放入 `icons/` 目录即可。图片不存在时不会报错，会自动使用纯文字标题。
+
+`centered` 头部联系方式图标总开关：
+
+```python
+ENABLE_CENTERED_HEADER_ICONS = True
+```
+
+单个联系方式图标开关：
+
+```python
+CENTERED_HEADER_ICON_ENABLED = {
+    "电子邮箱": True,
+    "联系电话": True,
+    "个人主页": True,
+    "GitHub": True,
+}
+```
+
+自定义 PNG 图标路径；留空或文件不存在时使用默认 Font Awesome 图标：
+
+```python
+CENTERED_HEADER_ICONS = {
+    "电子邮箱": "icons/email.png",
+    "联系电话": "icons/phone.png",
+    "个人主页": "icons/web.png",
+    "GitHub": "icons/github.png",
+}
+```
+
+默认图标也可以改成其它 LaTeX 命令；如果不想使用默认图标，把对应字段设为空字符串：
+
+```python
+CENTERED_HEADER_ICON_COMMANDS = {
+    "电子邮箱": r"\faEnvelope",
+    "联系电话": r"\faPhone",
+    "个人主页": r"\faGlobe",
+    "GitHub": r"\faGithub",
+}
+```
 
 ## 连续排版
 

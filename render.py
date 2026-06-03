@@ -45,6 +45,21 @@ class RenderConfig:
     CENTERED_HEADER_TOP_SEP = f"{LayoutConfig.CENTERED_HEADER_TOP_SEP_MM:g}mm"
     SECTION_ICON_SIZE = StyleConfig.SECTION_ICON_SIZE
     SECTION_ICON_TEXT_GAP = StyleConfig.SECTION_ICON_TEXT_GAP
+    CENTERED_HEADER_ICON_SIZE = getattr(
+        StyleConfig,
+        "CENTERED_HEADER_ICON_SIZE",
+        "0.28cm",
+    )
+    CENTERED_HEADER_ICON_TEXT_GAP = getattr(
+        StyleConfig,
+        "CENTERED_HEADER_ICON_TEXT_GAP",
+        "0.06cm",
+    )
+    CENTERED_HEADER_ICON_RAISE = getattr(
+        StyleConfig,
+        "CENTERED_HEADER_ICON_RAISE",
+        "-0.035cm",
+    )
     PAGE_TOP_BALANCE_GLUE = (
         rf"\vspace*{{\stretch{{{LayoutConfig.BALANCE_VERTICAL_TOP_WEIGHT:g}}}}}"
         if getattr(LayoutConfig, "BALANCE_VERTICAL_WHITESPACE", False)
@@ -66,6 +81,7 @@ BASE_TEX_TEMPLATE = r"""
 \usepackage[top=[[MARGIN_TOP]], bottom=[[MARGIN_BOTTOM]], left=[[MARGIN_LEFT]], right=[[MARGIN_RIGHT]]]{geometry}
 \usepackage{xeCJK}          
 \usepackage{graphicx}       
+[[CENTERED_HEADER_ICON_PACKAGE]]
 \usepackage{enumitem}       
 \usepackage{tabularx}       
 \usepackage{array}
@@ -132,6 +148,7 @@ class LatexRenderer:
         self.spacing = spacing_config
         self.tex_code = BASE_TEX_TEMPLATE
         self.typography = TypographyMetrics(LayoutConfig.CHAR_WIDTH_MM)
+        self.needs_centered_header_icon_package = False
 
     def _escape_latex(self, text, preserve_visible_spaces=True):
         """转义用户文本中的 LaTeX 特殊字符"""
@@ -333,6 +350,67 @@ class LatexRenderer:
 
         return safe_title
 
+    def _style_lookup(self, attr_name, key, fallback_key=None, default=None):
+        """按实际字段名优先、兼容字段名兜底读取样式配置。"""
+        mapping = getattr(StyleConfig, attr_name, {})
+        if key in mapping:
+            return mapping[key]
+        if fallback_key is not None and fallback_key in mapping:
+            return mapping[fallback_key]
+        return default
+
+    def _centered_header_icon_enabled(self, key, fallback_key=None):
+        """判断 centered 头部联系方式字段是否显示图标。"""
+        if not getattr(StyleConfig, "ENABLE_CENTERED_HEADER_ICONS", False):
+            return False
+
+        return bool(
+            self._style_lookup(
+                "CENTERED_HEADER_ICON_ENABLED",
+                key,
+                fallback_key,
+                True,
+            )
+        )
+
+    def _render_centered_header_icon(self, key, fallback_key=None):
+        """渲染 centered 头部联系方式字段前的图标。"""
+        if not self._centered_header_icon_enabled(key, fallback_key):
+            return ""
+
+        icon_path = self._style_lookup(
+            "CENTERED_HEADER_ICONS",
+            key,
+            fallback_key,
+            "",
+        )
+        if icon_path and os.path.exists(icon_path):
+            safe_icon_path = icon_path.replace("\\", "/")
+            icon_body = (
+                f"\\includegraphics[height={RenderConfig.CENTERED_HEADER_ICON_SIZE}]"
+                f"{{{safe_icon_path}}}"
+            )
+        else:
+            icon_body = self._style_lookup(
+                "CENTERED_HEADER_ICON_COMMANDS",
+                key,
+                fallback_key,
+                "",
+            )
+            if not icon_body:
+                return ""
+            self.needs_centered_header_icon_package = True
+            icon_body = (
+                f"\\resizebox{{!}}{{{RenderConfig.CENTERED_HEADER_ICON_SIZE}}}"
+                f"{{{icon_body}}}"
+            )
+
+        return (
+            f"\\raisebox{{{RenderConfig.CENTERED_HEADER_ICON_RAISE}}}"
+            f"{{{icon_body}}}"
+            f"\\hspace{{{RenderConfig.CENTERED_HEADER_ICON_TEXT_GAP}}}"
+        )
+
     def _header_template(self):
         """返回当前头部模板 ID。"""
         return self.data["header"].get("头部模板", "classic")
@@ -428,20 +506,29 @@ class LatexRenderer:
         return header_tex
 
     def _centered_contact_parts(self):
-        """返回 centered 头部允许展示的联系方式字段。"""
+        """按 Markdown 头部字段顺序返回 centered 头部允许展示的联系方式字段。"""
         header = self.data["header"]
-        contact_fields = (
-            ("电子邮箱",),
-            ("联系电话",),
-            ("个人主页",),
-            ("GitHub", "GitHub主页"),
-        )
+        contact_field_fallbacks = {
+            "电子邮箱": "电子邮箱",
+            "联系电话": "联系电话",
+            "个人主页": "个人主页",
+            "GitHub": "GitHub",
+            "GitHub主页": "GitHub",
+        }
         parts = []
-        for aliases in contact_fields:
-            for key in aliases:
-                if header.get(key):
-                    parts.append(self._escape_latex(header[key]))
-                    break
+        rendered_fallbacks = set()
+        for key, value in header.items():
+            fallback_key = contact_field_fallbacks.get(key)
+            if not fallback_key or fallback_key in rendered_fallbacks:
+                continue
+
+            icon = self._render_centered_header_icon(key, fallback_key)
+            parts.append(icon + self._escape_latex(value))
+            rendered_fallbacks.add(fallback_key)
+
+            if len(parts) >= 4:
+                break
+
         return parts
 
     def _render_centered_header(self):
@@ -539,6 +626,19 @@ class LatexRenderer:
         self.tex_code = self.tex_code.replace("[[TITLE_COLOR]]", StyleConfig.TITLE_COLOR)
         self.tex_code = self.tex_code.replace("[[BODY_COLOR]]", StyleConfig.BODY_COLOR)
         self.tex_code = self.tex_code.replace("[[RULE_COLOR]]", StyleConfig.RULE_COLOR)
+        icon_package = (
+            getattr(
+                StyleConfig,
+                "CENTERED_HEADER_ICON_PACKAGE",
+                r"\usepackage{fontawesome5}",
+            )
+            if self.needs_centered_header_icon_package
+            else ""
+        )
+        self.tex_code = self.tex_code.replace(
+            "[[CENTERED_HEADER_ICON_PACKAGE]]",
+            icon_package,
+        )
         self.tex_code = self.tex_code.replace("[[MARGIN_TOP]]", RenderConfig.MARGIN_TOP)
         self.tex_code = self.tex_code.replace("[[MARGIN_BOTTOM]]", RenderConfig.MARGIN_BOTTOM)
         self.tex_code = self.tex_code.replace("[[MARGIN_LEFT]]", RenderConfig.MARGIN_LEFT)
