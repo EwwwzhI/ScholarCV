@@ -46,7 +46,7 @@ class LayoutConfig:
 
     # 严格对应 LaTeX 模板中的 \geometry 设置
     MARGIN_TOP = 0.0
-    MARGIN_BOTTOM = 4.0
+    MARGIN_BOTTOM = 6.0
     MARGIN_LEFT = 12.0
     MARGIN_RIGHT = 12.0
     # 内容未填满安全高度时，用弹性空白平衡页面上下留白。
@@ -92,9 +92,9 @@ class LayoutConfig:
     # ==========================================
     # 头部基本信息区：左侧校徽 + 基本信息，右侧证件照
     # LaTeX minipage 会被更高的一侧撑开，因此按证件照/左侧内容最大值估算
-    LOGO_HEIGHT_MM = 18.0
-    AVATAR_WIDTH_MM = 34.0
-    AVATAR_HEIGHT_MM = 46.0
+    LOGO_HEIGHT_MM = 16.0
+    AVATAR_WIDTH_MM = 33.0
+    AVATAR_HEIGHT_MM = 44.0
     LOGO_INFO_SEP_BASE = 0.0
 
     # 基本信息标题区：标题行高度取文字与图标中的较大值，再加标题后距和分割线
@@ -161,6 +161,20 @@ class LayoutConfig:
     CENTERED_HEADER_NAME_LINE_HEIGHT_MM = 9.0
     CENTERED_HEADER_NAME_CONTACT_GAP_MM = 2.0
     CENTERED_HEADER_CONTACT_LINE_HEIGHT_MM = 5.0
+    # hybrid 头部布局：整行内容区居中，校徽和证件照分别浮动在左右两侧。
+    HYBRID_HEADER_RIGHT_WIDTH_MM = AVATAR_WIDTH_MM
+    HYBRID_HEADER_CONTENT_WIDTH_MM = VALID_WIDTH
+    HYBRID_AVATAR_HEIGHT_WIDTH_RATIO = AVATAR_HEIGHT_MM / AVATAR_WIDTH_MM
+    HYBRID_HEADER_BOX_HEIGHT_MM = (
+        HYBRID_HEADER_RIGHT_WIDTH_MM * HYBRID_AVATAR_HEIGHT_WIDTH_RATIO
+    )
+    HYBRID_LOGO_WIDTH_MM = 40.0
+    HYBRID_LOGO_HEIGHT_MM = HYBRID_HEADER_BOX_HEIGHT_MM
+    HYBRID_HEADER_NAME_LINE_HEIGHT_MM = 9.0
+    HYBRID_HEADER_NAME_INFO_GAP_MM = 2.0
+    HYBRID_HEADER_INFO_LINE_HEIGHT_MM = 5.0
+    HYBRID_HEADER_INFO_LINE_GAP_MM = 1.0
+    HYBRID_HEADER_MAX_INFO_ITEMS = 4
 
     # 一级大模块标题高度：标题行取文字与图标中的较大值，再加 2pt 后距和分割线
     SECTION_TITLE_AFTER_SEP_MM = 2.0 * PT_TO_MM
@@ -265,5 +279,5 @@ class LayoutConfig:
 
     # 硬安全线：连续求解的目标区间不能超过该安全线。
     LAYOUT_SAFETY_RATIO = 1.0
-    LAYOUT_SAFETY_MARGIN_MM = 15.0
+    LAYOUT_SAFETY_MARGIN_MM = 14.0
     LAYOUT_SOLVER_EPSILON_MM = 0.1

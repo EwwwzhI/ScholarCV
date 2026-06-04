@@ -34,11 +34,23 @@ def build_resume(md_file="resume_config.md", output_name="output_resume"):
 
     print("\n✂️ [Step 2/5] 正在进行图像资产清洗与自动裁切...")
     header = resume_data["header"]
-    if header.get("头部模板", "classic") == "classic":
+    header_template = header.get("头部模板", "classic")
+    if header_template == "classic":
         try:
             header["证件照"] = ImageProcessor.process_avatar(header.get("证件照", ""))
             header["校徽"] = ImageProcessor.process_logo(header.get("校徽", ""))
             print("✅ 证件照(2.6x3.6)与校徽(去边透明)规范化完成。")
+        except Exception as e:
+            print(f"\n🚨 图像预处理失败：{e}")
+            return
+    elif header_template == "hybrid":
+        try:
+            header["证件照"] = ImageProcessor.process_avatar(header.get("证件照", ""))
+            if header.get("校徽"):
+                header["校徽"] = ImageProcessor.process_logo(header.get("校徽", ""))
+                print("✅ hybrid 头部证件照与校徽规范化完成。")
+            else:
+                print("✅ hybrid 头部证件照规范化完成，校徽留空占位。")
         except Exception as e:
             print(f"\n🚨 图像预处理失败：{e}")
             return

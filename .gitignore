@@ -27,6 +27,7 @@ __pycache__/
 
 # Generated preprocessed images referenced by output_resume.tex
 temp/
+my_resume/
 
 # Local OS/editor noise
 .DS_Store

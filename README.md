@@ -5,7 +5,7 @@ ScholarCV 是一个面向中文学术简历的自动排版工具。项目使用 
 ## 功能特点
 
 - 使用 `resume_config.md` 管理基础信息、教育背景、科研经历、竞赛经历、项目经历等内容。
-- 支持 `classic` 和 `centered` 两种头部模板；`classic` 自动处理证件照和校徽。
+- 支持 `classic`、`centered` 和 `hybrid` 三种头部模板；`classic` 自动处理证件照和校徽，`hybrid` 使用整行居中信息、左右浮动图片布局。
 - 自动估算 A4 页面高度，并连续求解行距与模块间距，让内容落在目标饱满区间。
 - 支持中文等效字符宽度估算，减少中英文混排导致的换行误差。
 - 支持标题颜色、正文颜色、分割线颜色配置。
@@ -34,7 +34,7 @@ xelatex --version
 ## 快速开始
 
 1. 编辑 `resume_config.md`。
-2. 使用默认 `classic` 头部模板时，将证件照、校徽放在项目根目录，并在 `resume_config.md` 中填写文件名。
+2. 使用 `classic` 或 `hybrid` 头部模板时，将证件照、校徽等图片放在项目根目录，并在 `resume_config.md` 中填写文件名。
 3. 运行：
 
 ```powershell
@@ -79,6 +79,23 @@ GitHub: https://github.com/hijiangtao
 ```
 
 `centered` 最多显示 4 个联系方式，会按 YAML 头部中的书写顺序读取这些非空字段：`电子邮箱`、`联系电话`、`个人主页`、`GitHub`。`GitHub主页` 会作为 `GitHub` 的兼容别名，但推荐新配置使用 `GitHub`；如果两个字段都填写，只会渲染先出现的一个。其它头部字段不会自动显示在联系方式行。联系方式前可显示图标，默认使用 Font Awesome 图标；也可以在 `style_config.py` 中改为自定义 PNG。
+
+整行居中姓名信息、左右浮动图片的混合头部使用 `hybrid`：
+
+```md
+---
+头部模板: hybrid
+姓名: 某某某
+联系电话: (+86) 138-xxxx-xxxx
+性别: 男
+电子邮箱: example@email.com
+籍贯: 某省某市
+校徽: 校徽.png
+证件照: 证件照.png
+---
+```
+
+`hybrid` 必须填写 `姓名` 和 `证件照`。`校徽` 可选；不填写时姓名信息和右侧证件照位置不变。头部外层是一整行内容区：姓名和信息按整行可用宽度水平居中，并在头部高度内垂直居中；校徽以零宽浮动方式贴在左上角，证件照以零宽浮动方式贴在右上角，左右图片都不参与姓名信息的居中计算。整行内容区宽度、右侧证件照宽度和校徽宽度都可在 `config.py` 中调节；校徽和证件照会在各自宽度和头部高度内等比缩放。信息区按 YAML 头部中的书写顺序读取字段，自动排除 `头部模板`、`姓名`、`证件照`、`校徽`，最多显示 4 项，每行最多 2 项、共最多 2 行。标签默认使用字段名，并内置短标签：`联系电话` 显示为 `手机`，`电子邮箱` 显示为 `邮箱`。
 
 正文模块使用二级标题：
 
@@ -129,6 +146,7 @@ GitHub: https://github.com/hijiangtao
 - `AVATAR_WIDTH_MM` / `AVATAR_HEIGHT_MM`：证件照显示尺寸
 - `LOGO_HEIGHT_MM`：校徽显示高度
 - `CENTERED_HEADER_TOP_SEP_MM`：`centered` 头部上方额外留白，默认 `0mm`
+- `HYBRID_HEADER_CONTENT_WIDTH_MM` / `HYBRID_HEADER_RIGHT_WIDTH_MM` / `HYBRID_LOGO_WIDTH_MM`：`hybrid` 头部整行内容区宽度、右侧证件照宽度和左上角浮动校徽宽度。内容区默认等于正文可用宽度；右侧证件照宽度会按证件照比例推导头部高度，校徽和证件照会在各自限制内等比缩放
 - `ITEMIZE_INDENT_MM`：列表整体左缩进，渲染端 `leftmargin` 与高度估算端行宽同步
 - `ITEMIZE_TOPSEP_MM`：列表环境自身上下间距，当前默认 `0`；标题到列表的入口间距跟随动态 `item_sep`
 - `PROJECT_SEP_BASE` / `PROJECT_SEPARATOR_AFTER_SEP_MM`：`project-sep: dashed` 虚线前后额外间距，当前默认不额外叠加；为 `0` 时不会输出多余的 `\vspace{0mm}`

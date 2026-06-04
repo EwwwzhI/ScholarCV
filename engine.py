@@ -93,6 +93,59 @@ def centered_contact_text(header):
 
     return " · ".join(parts)
 
+def hybrid_info_items(header, config=LayoutConfig):
+    """按 YAML 头部字段顺序返回 hybrid 中央信息区字段。"""
+    excluded_keys = {"头部模板", "姓名", "证件照", "校徽"}
+    label_aliases = {
+        "联系电话": "手机",
+        "电子邮箱": "邮箱",
+    }
+    max_items = getattr(config, "HYBRID_HEADER_MAX_INFO_ITEMS", 4)
+
+    items = []
+    for key, value in header.items():
+        if key in excluded_keys:
+            continue
+        items.append((label_aliases.get(key, key), str(value)))
+        if len(items) >= max_items:
+            break
+
+    return items
+
+def hybrid_info_line_texts(items):
+    """把 hybrid 中央信息字段切成最多两行估算文本。"""
+    lines = []
+    for index in range(0, len(items), 2):
+        line_items = items[index:index + 2]
+        lines.append(" · ".join(f"{label}：{value}" for label, value in line_items))
+    return lines
+
+def estimate_hybrid_header_height(header, config=LayoutConfig):
+    """估算 hybrid 头部高度，取浮动校徽、居中信息、右头像中的最大值。"""
+    content_width = getattr(config, "HYBRID_HEADER_CONTENT_WIDTH_MM", config.VALID_WIDTH)
+    name_lines = TYPOGRAPHY.estimate_lines(
+        f"**{header.get('姓名', '')}**",
+        content_width,
+        markdown_bold=True,
+    )
+    center_height = name_lines * config.HYBRID_HEADER_NAME_LINE_HEIGHT_MM
+
+    info_lines = hybrid_info_line_texts(hybrid_info_items(header, config))
+    if info_lines:
+        center_height += config.HYBRID_HEADER_NAME_INFO_GAP_MM
+        for index, line in enumerate(info_lines):
+            rendered_lines = TYPOGRAPHY.estimate_lines(
+                line,
+                content_width,
+                markdown_bold=False,
+            )
+            center_height += rendered_lines * config.HYBRID_HEADER_INFO_LINE_HEIGHT_MM
+            if index < len(info_lines) - 1:
+                center_height += config.HYBRID_HEADER_INFO_LINE_GAP_MM
+
+    logo_height = config.HYBRID_LOGO_HEIGHT_MM if header.get("校徽") else 0.0
+    return max(logo_height, center_height, config.HYBRID_HEADER_BOX_HEIGHT_MM)
+
 def estimate_header_height(header, config=LayoutConfig, line_stretch=None):
     """按头部模板估算头部区域高度。"""
     template = header.get("头部模板", "classic")
@@ -114,6 +167,8 @@ def estimate_header_height(header, config=LayoutConfig, line_stretch=None):
             + config.CENTERED_HEADER_NAME_CONTACT_GAP_MM
             + max(1, contact_lines) * config.CENTERED_HEADER_CONTACT_LINE_HEIGHT_MM
         )
+    if template == "hybrid":
+        return estimate_hybrid_header_height(header, config)
 
     return (
         config.header_height_mm(line_stretch)

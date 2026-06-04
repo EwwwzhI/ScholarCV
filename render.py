@@ -17,6 +17,11 @@ class RenderConfig:
     LOGO_HEIGHT = f"{LayoutConfig.LOGO_HEIGHT_MM / 10:g}cm"
     LOGO_INFO_SEP = f"{LayoutConfig.LOGO_INFO_SEP_BASE / 10:g}cm"
     BASIC_INFO_TABLE_GAP = f"{LayoutConfig.BASIC_INFO_TABLE_GAP_MM:g}mm"
+    HYBRID_LOGO_WIDTH = f"{LayoutConfig.HYBRID_LOGO_WIDTH_MM:g}mm"
+    HYBRID_LOGO_HEIGHT = f"{LayoutConfig.HYBRID_LOGO_HEIGHT_MM / 10:g}cm"
+    HYBRID_HEADER_CONTENT_WIDTH = f"{LayoutConfig.HYBRID_HEADER_CONTENT_WIDTH_MM:g}mm"
+    HYBRID_HEADER_RIGHT_WIDTH = f"{LayoutConfig.HYBRID_HEADER_RIGHT_WIDTH_MM:g}mm"
+    HYBRID_HEADER_BOX_HEIGHT = f"{LayoutConfig.HYBRID_HEADER_BOX_HEIGHT_MM / 10:g}cm"
     
     # 证件照固定尺寸 (这里直接决定 LaTeX 渲染的照片大小)
     AVATAR_WIDTH = f"{LayoutConfig.AVATAR_WIDTH_MM / 10:g}cm"
@@ -531,6 +536,43 @@ class LatexRenderer:
 
         return parts
 
+    def _hybrid_info_items(self):
+        """按 YAML 头部字段顺序返回 hybrid 中央信息区字段。"""
+        header = self.data["header"]
+        excluded_keys = {"头部模板", "姓名", "证件照", "校徽"}
+        label_aliases = {
+            "联系电话": "手机",
+            "电子邮箱": "邮箱",
+        }
+        max_items = getattr(LayoutConfig, "HYBRID_HEADER_MAX_INFO_ITEMS", 4)
+
+        items = []
+        for key, value in header.items():
+            if key in excluded_keys:
+                continue
+            items.append((label_aliases.get(key, key), value))
+            if len(items) >= max_items:
+                break
+
+        return items
+
+    def _render_hybrid_info_lines(self):
+        """渲染 hybrid 中央信息区，最多两行、每行最多两项。"""
+        items = self._hybrid_info_items()
+        lines = []
+        separator = r"\hspace{1.5mm}$\cdot$\hspace{1.5mm}"
+
+        for index in range(0, len(items), 2):
+            line_items = items[index:index + 2]
+            parts = []
+            for label, value in line_items:
+                safe_label = self._escape_latex(label)
+                safe_value = self._escape_latex(value)
+                parts.append(f"\\textbf{{{safe_label}：}}{safe_value}")
+            lines.append(f"{{\\normalsize {separator.join(parts)}}}")
+
+        return "\\\\[1mm]\n".join(lines)
+
     def _render_centered_header(self):
         """渲染纯文字居中头部。"""
         name = self._escape_latex(self.data["header"].get("姓名", ""))
@@ -554,6 +596,67 @@ class LatexRenderer:
             "\\end{center}"
         )
 
+    def _render_hybrid_header(self):
+        """渲染整行居中信息、左右浮动图片的混合头部。"""
+        header = self.data["header"]
+        name = self._escape_latex(header.get("姓名", ""))
+        info_lines = self._render_hybrid_info_lines()
+        info_block = f"\\\\[2mm]\n{info_lines}" if info_lines else ""
+
+        logo_path = header.get("校徽", "").replace("\\", "/")
+        avatar_path = header.get("证件照", "").replace("\\", "/")
+        logo_overlay = (
+            "\\makebox[0pt][l]{"
+            "\\raisebox{-\\height}[0pt][0pt]{"
+            "\\includegraphics"
+            f"[width={RenderConfig.HYBRID_LOGO_WIDTH},height={RenderConfig.HYBRID_HEADER_BOX_HEIGHT},keepaspectratio]"
+            f"{{{logo_path}}}"
+            "}"
+            "}"
+            if logo_path
+            else ""
+        )
+        avatar_overlay = (
+            "\\makebox[0pt][l]{"
+            "\\makebox[\\linewidth][r]{"
+            "\\raisebox{-\\height}[0pt][0pt]{"
+            "\\includegraphics"
+            f"[width={RenderConfig.HYBRID_HEADER_RIGHT_WIDTH},height={RenderConfig.HYBRID_HEADER_BOX_HEIGHT},keepaspectratio]"
+            f"{{{avatar_path}}}"
+            "}"
+            "}"
+            "}"
+        )
+
+        header_tex = r"""
+\noindent
+\begin{minipage}[t][[[HYBRID_HEADER_BOX_HEIGHT]]][t]{[[HYBRID_HEADER_CONTENT_WIDTH]]}
+    \vspace{0pt}%
+    \noindent
+    [[LOGO_OVERLAY]]
+    [[AVATAR_OVERLAY]]
+    \makebox[0pt][l]{\raisebox{0pt}[0pt][0pt]{%
+        \begin{minipage}[t][[[HYBRID_HEADER_BOX_HEIGHT]]][c]{\linewidth}
+            \centering
+            {\fontsize{20pt}{24pt}\selectfont\textcolor{cvTitle}{\textbf{[[NAME]]}}}[[INFO_BLOCK]]\par
+        \end{minipage}
+    }}
+\end{minipage}
+"""
+
+        replacements = {
+            "[[HYBRID_HEADER_CONTENT_WIDTH]]": RenderConfig.HYBRID_HEADER_CONTENT_WIDTH,
+            "[[HYBRID_HEADER_BOX_HEIGHT]]": RenderConfig.HYBRID_HEADER_BOX_HEIGHT,
+            "[[LOGO_OVERLAY]]": logo_overlay,
+            "[[AVATAR_OVERLAY]]": avatar_overlay,
+            "[[NAME]]": name,
+            "[[INFO_BLOCK]]": info_block,
+        }
+        for placeholder, value in replacements.items():
+            header_tex = header_tex.replace(placeholder, value)
+
+        return header_tex
+
     def _render_header(self):
         """按配置模板渲染头部。"""
         template = self._header_template()
@@ -561,6 +664,8 @@ class LatexRenderer:
             header_tex = self._render_classic_header()
         elif template == "centered":
             header_tex = self._render_centered_header()
+        elif template == "hybrid":
+            header_tex = self._render_hybrid_header()
         else:
             raise ValueError(f"未知头部模板：{template}")
 

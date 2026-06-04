@@ -6,7 +6,7 @@ PROJECT_SEP_DIRECTIVE_RE = re.compile(
 )
 PROJECT_SEP_MODES = {"none", "dashed", "space"}
 HEADER_TEMPLATE_KEY = "头部模板"
-HEADER_TEMPLATES = {"classic", "centered"}
+HEADER_TEMPLATES = {"classic", "centered", "hybrid"}
 
 def parse_resume_md(file_path):
     """
@@ -50,16 +50,19 @@ def parse_resume_md(file_path):
     if header_template not in HEADER_TEMPLATES:
         raise ValueError(
             f"\n❌ [排版阻断] 头部模板错误：\n"
-            f"'{HEADER_TEMPLATE_KEY}' 仅支持 classic 或 centered。\n"
+            f"'{HEADER_TEMPLATE_KEY}' 仅支持 classic、centered 或 hybrid。\n"
             f"-> 你的输入是: {header.get(HEADER_TEMPLATE_KEY)}"
         )
     header[HEADER_TEMPLATE_KEY] = header_template
     
     # 校验项 1：文字必填项不能少
     required_texts = {"姓名", "联系电话", "电子邮箱"}
-    missing_texts = required_texts - set(header.keys())
-    if missing_texts:
-        raise ValueError(f"\n❌ [排版阻断] 基础信息缺失：\n必须填写 {missing_texts}，否则简历头部结构将崩溃！")
+    if header_template in {"classic", "centered"}:
+        missing_texts = required_texts - set(header.keys())
+        if missing_texts:
+            raise ValueError(f"\n❌ [排版阻断] 基础信息缺失：\n必须填写 {missing_texts}，否则简历头部结构将崩溃！")
+    elif "姓名" not in header:
+        raise ValueError("\n❌ [排版阻断] 基础信息缺失：\nhybrid 头部模板必须填写 {'姓名'}！")
 
     # 校验项 2：双图必填项（不仅检查是否填了，还检查文件物理存不存在）
     required_images = {"证件照", "校徽"}
@@ -82,6 +85,23 @@ def parse_resume_md(file_path):
             raise ValueError(f"\n❌ [排版阻断] 图片信息缺失：\nclassic 头部模板必须包含 {missing_images}！")
 
         for img_key in required_images:
+            img_filename = header[img_key]
+            img_path = os.path.join(base_dir, img_filename)
+            if not os.path.exists(img_path):
+                raise FileNotFoundError(
+                    f"\n❌ [文件丢失] 找不到 {img_key}：\n"
+                    f"你在 md 中填写了 '{img_filename}'，但在同级目录下找不到该图片！\n"
+                    f"请检查文件名是否带上了后缀（如 .jpg/.png）或者文件是否放错了位置。"
+                )
+    elif header_template == "hybrid":
+        if "证件照" not in header:
+            raise ValueError("\n❌ [排版阻断] 图片信息缺失：\nhybrid 头部模板必须包含 {'证件照'}！")
+
+        hybrid_image_keys = ["证件照"]
+        if "校徽" in header:
+            hybrid_image_keys.append("校徽")
+
+        for img_key in hybrid_image_keys:
             img_filename = header[img_key]
             img_path = os.path.join(base_dir, img_filename)
             if not os.path.exists(img_path):
